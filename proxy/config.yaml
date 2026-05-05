@@ -1,0 +1,44 @@
+server:
+  address: ":8080"
+  read_timeout: 5s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+
+proxy:
+  upstream_url: "https://httpbin.org"
+  flush_interval: 100ms
+
+access:
+  default_policy: "allow"
+  lists:
+    - id: "deny-private-range"
+      type: "denylist"
+      value: "10.0.0.0/8"
+      description: "deny RFC1918 range"
+    - id: "allow-localhost"
+      type: "allowlist"
+      value: "127.0.0.1"
+      description: "allow localhost"
+    - id: "gray-office-range"
+      type: "graylist"
+      value: "192.168.1.10-192.168.1.50"
+      description: "gray traffic that falls back to default policy"
+
+rate_limit:
+  enabled: true
+  rps: 10
+  rpm: 100
+  rph: 1000
+  rpd: 10000
+  subnets:
+    - id: "office-subnet"
+      cidr: "192.168.1.0/24"
+      rps: 25
+      rpm: 500
+      rph: 5000
+      rpd: 50000
+      description: "shared subnet budget"
+
+logging:
+  level: "info"

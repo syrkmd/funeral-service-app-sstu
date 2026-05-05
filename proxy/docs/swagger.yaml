@@ -1,0 +1,152 @@
+basePath: /
+definitions:
+  domain.AccessDecision:
+    properties:
+      allowed:
+        type: boolean
+      decision:
+        type: string
+      ip:
+        type: string
+      matched_rule_id:
+        type: string
+      matched_value:
+        type: string
+      reason:
+        type: string
+    type: object
+  domain.IPRule:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      type:
+        $ref: '#/definitions/domain.ListType'
+      value:
+        type: string
+    type: object
+  domain.ListType:
+    enum:
+    - allowlist
+    - denylist
+    - graylist
+    type: string
+    x-enum-varnames:
+    - ListTypeAllow
+    - ListTypeDeny
+    - ListTypeGray
+  gintransport.CreateRuleRequest:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    required:
+    - type
+    - value
+    type: object
+  gintransport.errorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Production-ready HTTP proxy service with IP access control.
+  title: Proxy Service API
+  version: "1.0"
+paths:
+  /api/ip_access/check:
+    get:
+      parameters:
+      - description: IP address
+        in: query
+        name: ip
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.AccessDecision'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Check IP access decision
+      tags:
+      - ip_access
+  /api/ip_access/lists:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.IPRule'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: List IP rules
+      tags:
+      - ip_access
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rule payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gintransport.CreateRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.IPRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Create IP rule
+      tags:
+      - ip_access
+  /api/ip_access/lists/{id}:
+    delete:
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Delete IP rule
+      tags:
+      - ip_access
+swagger: "2.0"
