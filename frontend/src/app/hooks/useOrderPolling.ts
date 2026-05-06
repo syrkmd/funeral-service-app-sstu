@@ -1,29 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { useOrdersStore } from '../store/ordersStore';
-import { fetchOrders } from '../utils/ordersApi';
 
 const POLLING_INTERVAL = 5000; // 5 seconds
 
 export function useOrderPolling() {
-  const addOrUpdateOrders = useOrdersStore((state) => state.addOrUpdateOrders);
-  const lastUpdate = useOrdersStore((state) => state.lastUpdate);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    const loadLatestOrders = async () => {
+      const { lastUpdate, loadOrders } = useOrdersStore.getState();
+      await loadOrders(lastUpdate);
+    };
+
     // Initial fetch on mount
-    const loadOrders = async () => {
+    const loadInitialOrders = async () => {
       try {
-        const orders = await fetchOrders(lastUpdate);
-        if (orders && orders.length > 0) {
-          addOrUpdateOrders(orders);
-          console.log(`[Order Polling] Loaded ${orders.length} orders`);
-        }
+        await loadLatestOrders();
       } catch (error) {
         console.error('[Order Polling] Error loading orders:', error);
       }
     };
 
-    loadOrders();
+    loadInitialOrders();
 
     // Start polling
     pollingRef.current = setInterval(async () => {
@@ -33,11 +31,7 @@ export function useOrderPolling() {
       }
 
       try {
-        const orders = await fetchOrders(lastUpdate);
-        if (orders && orders.length > 0) {
-          addOrUpdateOrders(orders);
-          console.log(`[Order Polling] Received ${orders.length} order updates`);
-        }
+        await loadLatestOrders();
       } catch (error) {
         console.error('[Order Polling] Error fetching orders:', error);
       }
@@ -49,5 +43,5 @@ export function useOrderPolling() {
         clearInterval(pollingRef.current);
       }
     };
-  }, [addOrUpdateOrders, lastUpdate]);
+  }, []);
 }

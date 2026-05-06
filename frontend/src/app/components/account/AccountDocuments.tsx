@@ -6,7 +6,7 @@ type Document = {
   size: string;
 };
 
-const mockDocuments: Document[] = [
+const accountDocuments: Document[] = [
   {
     id: 1,
     name: "Свидетельство о смерти",
@@ -29,7 +29,7 @@ export function AccountDocuments() {
     alert(`Скачивание: ${documentName}`);
   };
 
-  if (mockDocuments.length === 0) {
+  if (accountDocuments.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="mb-6">
@@ -58,7 +58,7 @@ export function AccountDocuments() {
       <h1 className="text-3xl text-foreground mb-8">Документы</h1>
 
       <div className="space-y-4">
-        {mockDocuments.map((document) => (
+        {accountDocuments.map((document) => (
           <div
             key={document.id}
             className="bg-card border border-border rounded-lg p-6 hover:shadow-sm transition-shadow"

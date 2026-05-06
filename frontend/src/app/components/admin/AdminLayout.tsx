@@ -5,18 +5,19 @@ import { useAdminAuthStore } from "../../store/adminAuthStore";
 export function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isAdminAuth = useAdminAuthStore((state) => state.isAdminAuth);
+  const restoreAdminAuth = useAdminAuthStore((state) => state.restoreAdminAuth);
   const clearAdminAuth = useAdminAuthStore((state) => state.clearAdminAuth);
 
   useEffect(() => {
-    // Check authentication
-    if (!isAdminAuth) {
-      navigate("/admin/login");
-    }
-  }, [isAdminAuth, navigate]);
+    restoreAdminAuth().then((isAuthenticated) => {
+      if (!isAuthenticated) {
+        navigate("/admin/login");
+      }
+    });
+  }, [navigate, restoreAdminAuth]);
 
-  const handleLogout = () => {
-    clearAdminAuth();
+  const handleLogout = async () => {
+    await clearAdminAuth();
     navigate("/admin/login");
   };
 

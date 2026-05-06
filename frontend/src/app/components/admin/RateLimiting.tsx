@@ -1,14 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useProxyStore } from "../../store/proxyStore";
 
 export function RateLimiting() {
   const rateLimitSettings = useProxyStore((state) => state.rateLimitSettings);
+  const loadConfig = useProxyStore((state) => state.loadConfig);
   const updateRateLimits = useProxyStore((state) => state.updateRateLimits);
 
   const [editMode, setEditMode] = useState(false);
   const [rpsLimit, setRpsLimit] = useState(rateLimitSettings.rpsLimit);
   const [rpmLimit, setRpmLimit] = useState(rateLimitSettings.rpmLimit);
   const [saveMessage, setSaveMessage] = useState(false);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  useEffect(() => {
+    setRpsLimit(rateLimitSettings.rpsLimit);
+    setRpmLimit(rateLimitSettings.rpmLimit);
+  }, [rateLimitSettings.rpmLimit, rateLimitSettings.rpsLimit]);
 
   // Mock current usage
   const limits = {
@@ -30,8 +40,8 @@ export function RateLimiting() {
     { ip: "172.16.0.8", requests: 118, time: "14:25:33" },
   ];
 
-  const handleSave = () => {
-    updateRateLimits({
+  const handleSave = async () => {
+    await updateRateLimits({
       rpsLimit,
       rpmLimit,
     });

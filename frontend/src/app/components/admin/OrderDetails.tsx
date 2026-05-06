@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useOrdersStore, type OrderStatus } from "../../store/ordersStore";
-import { logStatusChanged, logPaymentConfirmed } from "../../utils/activityLogger";
 
 const predefinedFiles = [
   { value: "death_certificate.pdf", label: "Свидетельство о смерти" },
@@ -27,30 +26,22 @@ export function OrderDetails() {
   const addDocument = useOrdersStore((state) => state.addDocument);
   const removeDocument = useOrdersStore((state) => state.removeDocument);
 
-  const handleStatusChange = (newStatus: OrderStatus) => {
+  const handleStatusChange = async (newStatus: OrderStatus) => {
     if (orderId && order) {
-      updateOrderStatus(orderId, newStatus);
+      await updateOrderStatus(orderId, newStatus);
       setStatusUpdateMessage(true);
       setTimeout(() => setStatusUpdateMessage(false), 3000);
-
-      // Log activity
-      logStatusChanged(order.client.name, orderId);
     }
   };
 
-  const handlePaymentChange = () => {
+  const handlePaymentChange = async () => {
     if (orderId && order) {
       const newPaidStatus = !order.isPaid;
-      updateOrderPayment(orderId, newPaidStatus);
-
-      // Log activity when payment is confirmed
-      if (newPaidStatus) {
-        logPaymentConfirmed(order.client.name, orderId);
-      }
+      await updateOrderPayment(orderId, newPaidStatus);
     }
   };
 
-  const handleAddDocument = () => {
+  const handleAddDocument = async () => {
     if (!orderId || !newDocName.trim() || !newDocFile) return;
 
     const newDocument = {
@@ -61,7 +52,7 @@ export function OrderDetails() {
       date: new Date().toISOString().split("T")[0],
     };
 
-    addDocument(orderId, newDocument);
+    await addDocument(orderId, newDocument);
 
     // Reset form
     setNewDocName("");
@@ -70,10 +61,10 @@ export function OrderDetails() {
     setShowAddDocument(false);
   };
 
-  const handleRemoveDocument = (documentId: number) => {
+  const handleRemoveDocument = async (documentId: number) => {
     if (!orderId) return;
     if (confirm("Удалить этот документ?")) {
-      removeDocument(orderId, documentId);
+      await removeDocument(orderId, documentId);
     }
   };
 

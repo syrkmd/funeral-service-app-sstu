@@ -1,32 +1,23 @@
 import { useEffect } from "react";
 import { Outlet, Link, useNavigate, useLocation } from "react-router";
 import { useUserStore } from "../../store/userStore";
-import { normalizePhone } from "../../utils/phoneUtils";
 
 export function AccountLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const setUserPhone = useUserStore((state) => state.setUserPhone);
+  const restoreSession = useUserStore((state) => state.restoreSession);
   const clearUserPhone = useUserStore((state) => state.clearUserPhone);
 
   useEffect(() => {
-    // Проверка авторизации (демо)
-    const isAuthenticated = localStorage.getItem("account_authenticated");
-    const storedPhone = localStorage.getItem("account_phone");
+    restoreSession().then((isAuthenticated) => {
+      if (!isAuthenticated) {
+        navigate("/account/login");
+      }
+    });
+  }, [navigate, restoreSession]);
 
-    if (!isAuthenticated) {
-      navigate("/account/login");
-    } else if (storedPhone) {
-      // Restore normalized phone to store on page load
-      const normalizedPhone = normalizePhone(storedPhone);
-      setUserPhone(normalizedPhone);
-    }
-  }, [navigate, setUserPhone]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("account_authenticated");
-    localStorage.removeItem("account_phone");
-    clearUserPhone();
+  const handleLogout = async () => {
+    await clearUserPhone();
     navigate("/account/login");
   };
 

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useProxyStore, type IPAccessType } from "../../store/proxyStore";
 
 export function IPAccess() {
   const ipRules = useProxyStore((state) => state.ipRules);
   const defaultPolicy = useProxyStore((state) => state.defaultPolicy);
+  const loadConfig = useProxyStore((state) => state.loadConfig);
   const addIPRule = useProxyStore((state) => state.addIPRule);
   const removeIPRule = useProxyStore((state) => state.removeIPRule);
   const setDefaultPolicy = useProxyStore((state) => state.setDefaultPolicy);
@@ -17,10 +18,14 @@ export function IPAccess() {
   const [checkIP, setCheckIP] = useState("");
   const [checkResult, setCheckResult] = useState<string | null>(null);
 
-  const handleAddIP = () => {
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  const handleAddIP = async () => {
     if (!newIP) return;
 
-    addIPRule({
+    await addIPRule({
       ip: newIP,
       type: newType,
       note: newNote || undefined,

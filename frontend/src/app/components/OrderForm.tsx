@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useOrdersStore } from "../store/ordersStore";
 import { normalizePhone } from "../utils/phoneUtils";
-import { logOrderCreated } from "../utils/activityLogger";
 
 const availableServices = [
   { id: "traditional", name: "Традиционные похороны", price: 450000 },
@@ -63,7 +62,7 @@ type FormErrors = {
 
 export function OrderForm() {
   const navigate = useNavigate();
-  const addOrder = useOrdersStore((state) => state.addOrder);
+  const createOrder = useOrdersStore((state) => state.createOrder);
   const [currentStep, setCurrentStep] = useState(1);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -208,9 +207,7 @@ export function OrderForm() {
     return step < currentStep || completedSteps.has(step - 1);
   };
 
-  const handleSubmit = () => {
-    const newOrderId = `ORD-${Date.now().toString(36).toUpperCase()}`;
-
+  const handleSubmit = async () => {
     // Calculate total
     const servicesTotal = formData.selectedServices.reduce((sum, serviceId) => {
       const service = availableServices.find(s => s.id === serviceId);
@@ -228,10 +225,9 @@ export function OrderForm() {
     // Removes spaces, dashes, parentheses: "+7 (999) 123-45-67" → "+79991234567"
     const normalizedPhone = normalizePhone(formData.clientPhone);
 
-    // Create new order object
-    const newOrder = {
-      id: newOrderId,
+    const newOrderData = {
       date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
       status: "processing" as const,
       total,
       phone: normalizedPhone,
@@ -263,13 +259,9 @@ export function OrderForm() {
       documents: [],
     };
 
-    // Add order to global store - appears instantly in admin panel
-    addOrder(newOrder);
+    const newOrder = await createOrder(newOrderData);
 
-    // Log activity for dashboard
-    logOrderCreated(formData.clientName, newOrderId);
-
-    setOrderId(newOrderId);
+    setOrderId(newOrder.id);
     setCurrentStep(7);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

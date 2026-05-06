@@ -9,11 +9,11 @@ export function AccountVerify() {
   const phone = location.state?.phone || "";
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const setUserPhone = useUserStore((state) => state.setUserPhone);
+  const verifyCode = useUserStore((state) => state.verifyCode);
 
   const DEMO_CODE = "4821";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -22,22 +22,14 @@ export function AccountVerify() {
       return;
     }
 
-    // В демо-режиме проверяем статичный код
-    if (code !== DEMO_CODE) {
+    // Normalize phone for consistent matching with orders
+    const normalizedPhone = normalizePhone(phone);
+    const isVerified = await verifyCode(normalizedPhone, code);
+
+    if (!isVerified) {
       setError("Неверный код");
       return;
     }
-
-    // В реальном приложении здесь была бы проверка через API
-    // Сохраняем "сессию" в localStorage для демо
-    // Normalize phone for consistent matching with orders
-    const normalizedPhone = normalizePhone(phone);
-
-    localStorage.setItem("account_authenticated", "true");
-    localStorage.setItem("account_phone", normalizedPhone);
-
-    // Save normalized phone to user store for order filtering
-    setUserPhone(normalizedPhone);
 
     navigate("/account");
   };

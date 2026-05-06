@@ -1,19 +1,23 @@
 import { useEffect } from "react";
-import { useMetricsStore, fetchRPSData, type ActivityLogEntry } from "../../store/metricsStore";
+import { fetchRPSData } from "../../../api/metrics.api";
+import { useMetricsStore } from "../../store/metricsStore";
+import { useOrdersStore } from "../../store/ordersStore";
 import { useOrderPolling } from "../../hooks/useOrderPolling";
+import { buildActivityLog, type ActivityLogEntry } from "../../utils/activityLog";
 
 export function Dashboard() {
   // Enable real-time polling for orders
   useOrderPolling();
 
   const rpsData = useMetricsStore((state) => state.rpsData);
-  const activityLog = useMetricsStore((state) => state.activityLog);
   const totalRequests = useMetricsStore((state) => state.totalRequests);
   const errors = useMetricsStore((state) => state.errors);
   const activeClients = useMetricsStore((state) => state.activeClients);
   const ordersToday = useMetricsStore((state) => state.ordersToday);
   const avgLatency = useMetricsStore((state) => state.avgLatency);
   const traffic = useMetricsStore((state) => state.traffic);
+  const orders = useOrdersStore((state) => state.orders);
+  const activityLog = buildActivityLog(orders);
 
   const addRPSDataPoint = useMetricsStore((state) => state.addRPSDataPoint);
   const incrementTotalRequests = useMetricsStore((state) => state.incrementTotalRequests);

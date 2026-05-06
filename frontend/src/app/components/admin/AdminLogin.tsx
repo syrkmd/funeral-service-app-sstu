@@ -8,11 +8,10 @@ export function AdminLogin() {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock authentication - in production, this would call an API
-    if (login && password) {
-      setAdminAuth(true);
+
+    if (await setAdminAuth(login, password)) {
       navigate("/admin");
     }
   };

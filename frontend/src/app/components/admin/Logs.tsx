@@ -10,7 +10,7 @@ type LogEntry = {
   level: "INFO" | "ERROR";
 };
 
-const mockLogs: LogEntry[] = [
+const logEntries: LogEntry[] = [
   {
     id: 1,
     ip: "192.168.1.1",
@@ -82,7 +82,7 @@ export function Logs() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<string>("all");
 
-  const filteredLogs = mockLogs.filter((log) => {
+  const filteredLogs = logEntries.filter((log) => {
     // Level filter
     if (levelFilter !== "all" && log.level !== levelFilter) return false;
 
@@ -211,7 +211,7 @@ export function Logs() {
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <div className="p-4 bg-secondary/30 border-b border-border">
           <p className="text-sm text-muted-foreground">
-            Найдено записей: {filteredLogs.length} из {mockLogs.length}
+            Найдено записей: {filteredLogs.length} из {logEntries.length}
           </p>
         </div>
         <table className="w-full">
