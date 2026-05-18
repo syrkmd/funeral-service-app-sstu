@@ -1,4 +1,0 @@
-covervars.go
-matcher.cover.go
-trie.cover.go
-./ipmatch_test.go

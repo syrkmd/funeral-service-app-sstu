@@ -1,8 +1,0 @@
-covervars.go
-aliases.cover.go
-cache_controller.cover.go
-captcha_controller.cover.go
-ip_access_controller.cover.go
-monitoring_controller.cover.go
-proxy_controller.cover.go
-router.cover.go

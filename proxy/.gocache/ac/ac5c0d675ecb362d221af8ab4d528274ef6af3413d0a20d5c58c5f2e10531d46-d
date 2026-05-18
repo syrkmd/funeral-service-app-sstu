@@ -1,6 +1,0 @@
-covervars.go
-ip_access.cover.go
-rate_limit.cover.go
-recovery.cover.go
-request_logger.cover.go
-./middleware_test.go

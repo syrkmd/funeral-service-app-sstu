@@ -1,7 +1,0 @@
-./aliases.go
-./cache_controller.go
-./captcha_controller.go
-./ip_access_controller.go
-./monitoring_controller.go
-./proxy_controller.go
-./router.go

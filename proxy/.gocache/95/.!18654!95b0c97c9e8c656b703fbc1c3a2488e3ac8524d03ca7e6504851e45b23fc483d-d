@@ -1,7 +1,0 @@
-!<arch>
-__.PKGDEF       0           0     0     644     29158     `
-go object darwin arm64 go1.26.1 GOARM64=v8.0 X:regabiwrappers,regabiargs,greenteagc,randomizedheapbase64
-build id "UTX2ZI0a5u8pHt5Bva57/M9cuB5pZjH3cJRa2UqDx"
-
-
-$$B
