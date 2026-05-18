@@ -38,7 +38,7 @@ public class OrderService {
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
-        Order order = new Order();
+        Order order = mapper.toEntity(request);
         order.setId(generateOrderId());
 
         Order savedOrder = repository.save(order);
