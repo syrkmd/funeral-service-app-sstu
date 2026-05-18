@@ -1,0 +1,94 @@
+=== RUN   TestIPAccessUseCaseDecisionTable
+=== PAUSE TestIPAccessUseCaseDecisionTable
+=== RUN   TestIPAccessUseCaseInvalidIPHandling
+=== PAUSE TestIPAccessUseCaseInvalidIPHandling
+=== RUN   TestIPAccessUseCaseRuleManagementTable
+=== PAUSE TestIPAccessUseCaseRuleManagementTable
+=== RUN   TestIPAccessUseCaseDecisionCacheHitMissIsolationAndVersionInvalidation
+=== PAUSE TestIPAccessUseCaseDecisionCacheHitMissIsolationAndVersionInvalidation
+=== RUN   TestIPAccessUseCaseDecisionCacheTTLExpires
+=== PAUSE TestIPAccessUseCaseDecisionCacheTTLExpires
+=== RUN   TestIPAccessUseCaseGraylistVerificationFlow
+=== PAUSE TestIPAccessUseCaseGraylistVerificationFlow
+=== RUN   TestIPAccessUseCaseVerifiedRepoErrorsPropagate
+=== PAUSE TestIPAccessUseCaseVerifiedRepoErrorsPropagate
+=== RUN   TestIPAccessUseCaseSnapshotErrorsAndEmptyRules
+=== PAUSE TestIPAccessUseCaseSnapshotErrorsAndEmptyRules
+=== RUN   TestIPAccessUseCaseConcurrentDecisionsAndSnapshotUpdates
+=== PAUSE TestIPAccessUseCaseConcurrentDecisionsAndSnapshotUpdates
+=== CONT  TestIPAccessUseCaseDecisionTable
+=== RUN   TestIPAccessUseCaseDecisionTable/blacklist_deny_exact_ipv4
+=== CONT  TestIPAccessUseCaseGraylistVerificationFlow
+=== CONT  TestIPAccessUseCaseSnapshotErrorsAndEmptyRules
+=== CONT  TestIPAccessUseCaseVerifiedRepoErrorsPropagate
+=== CONT  TestIPAccessUseCaseConcurrentDecisionsAndSnapshotUpdates
+--- PASS: TestIPAccessUseCaseVerifiedRepoErrorsPropagate (0.00s)
+--- PASS: TestIPAccessUseCaseSnapshotErrorsAndEmptyRules (0.00s)
+=== PAUSE TestIPAccessUseCaseDecisionTable/blacklist_deny_exact_ipv4
+=== CONT  TestIPAccessUseCaseDecisionCacheTTLExpires
+=== CONT  TestIPAccessUseCaseDecisionCacheHitMissIsolationAndVersionInvalidation
+=== CONT  TestIPAccessUseCaseRuleManagementTable
+=== RUN   TestIPAccessUseCaseRuleManagementTable/list_rules
+=== CONT  TestIPAccessUseCaseInvalidIPHandling
+=== RUN   TestIPAccessUseCaseDecisionTable/whitelist_allow_cidr
+=== PAUSE TestIPAccessUseCaseDecisionTable/whitelist_allow_cidr
+--- PASS: TestIPAccessUseCaseGraylistVerificationFlow (0.00s)
+--- PASS: TestIPAccessUseCaseConcurrentDecisionsAndSnapshotUpdates (0.00s)
+--- PASS: TestIPAccessUseCaseDecisionCacheHitMissIsolationAndVersionInvalidation (0.00s)
+--- PASS: TestIPAccessUseCaseInvalidIPHandling (0.00s)
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/list_rules
+=== RUN   TestIPAccessUseCaseDecisionTable/graylist_challenge_range
+=== PAUSE TestIPAccessUseCaseDecisionTable/graylist_challenge_range
+=== RUN   TestIPAccessUseCaseRuleManagementTable/add_rule_normalizes_type_and_generates_id
+=== RUN   TestIPAccessUseCaseDecisionTable/default_allow
+=== PAUSE TestIPAccessUseCaseDecisionTable/default_allow
+=== RUN   TestIPAccessUseCaseDecisionTable/default_deny
+=== PAUSE TestIPAccessUseCaseDecisionTable/default_deny
+=== RUN   TestIPAccessUseCaseDecisionTable/blacklist_precedence_over_whitelist
+=== PAUSE TestIPAccessUseCaseDecisionTable/blacklist_precedence_over_whitelist
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/add_rule_normalizes_type_and_generates_id
+=== RUN   TestIPAccessUseCaseDecisionTable/overlapping_allow_exact_inside_deny_cidr_still_deny
+=== RUN   TestIPAccessUseCaseRuleManagementTable/unsupported_rule_type_rejected
+=== PAUSE TestIPAccessUseCaseDecisionTable/overlapping_allow_exact_inside_deny_cidr_still_deny
+=== CONT  TestIPAccessUseCaseDecisionTable/blacklist_deny_exact_ipv4
+=== CONT  TestIPAccessUseCaseDecisionTable/overlapping_allow_exact_inside_deny_cidr_still_deny
+=== CONT  TestIPAccessUseCaseDecisionTable/blacklist_precedence_over_whitelist
+=== CONT  TestIPAccessUseCaseDecisionTable/whitelist_allow_cidr
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/unsupported_rule_type_rejected
+=== CONT  TestIPAccessUseCaseDecisionTable/default_deny
+=== CONT  TestIPAccessUseCaseDecisionTable/graylist_challenge_range
+=== CONT  TestIPAccessUseCaseDecisionTable/default_allow
+=== RUN   TestIPAccessUseCaseRuleManagementTable/empty_rule_value_rejected
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/empty_rule_value_rejected
+=== RUN   TestIPAccessUseCaseRuleManagementTable/duplicate_rule_handling_propagated
+--- PASS: TestIPAccessUseCaseDecisionTable (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/blacklist_deny_exact_ipv4 (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/whitelist_allow_cidr (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/blacklist_precedence_over_whitelist (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/overlapping_allow_exact_inside_deny_cidr_still_deny (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/default_deny (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/default_allow (0.00s)
+    --- PASS: TestIPAccessUseCaseDecisionTable/graylist_challenge_range (0.00s)
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/duplicate_rule_handling_propagated
+=== RUN   TestIPAccessUseCaseRuleManagementTable/delete_rule
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/delete_rule
+=== RUN   TestIPAccessUseCaseRuleManagementTable/delete_empty_id_rejected
+=== PAUSE TestIPAccessUseCaseRuleManagementTable/delete_empty_id_rejected
+=== CONT  TestIPAccessUseCaseRuleManagementTable/list_rules
+=== CONT  TestIPAccessUseCaseRuleManagementTable/duplicate_rule_handling_propagated
+=== CONT  TestIPAccessUseCaseRuleManagementTable/add_rule_normalizes_type_and_generates_id
+=== CONT  TestIPAccessUseCaseRuleManagementTable/empty_rule_value_rejected
+=== CONT  TestIPAccessUseCaseRuleManagementTable/delete_empty_id_rejected
+=== CONT  TestIPAccessUseCaseRuleManagementTable/delete_rule
+=== CONT  TestIPAccessUseCaseRuleManagementTable/unsupported_rule_type_rejected
+--- PASS: TestIPAccessUseCaseRuleManagementTable (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/list_rules (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/duplicate_rule_handling_propagated (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/add_rule_normalizes_type_and_generates_id (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/empty_rule_value_rejected (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/delete_empty_id_rejected (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/delete_rule (0.00s)
+    --- PASS: TestIPAccessUseCaseRuleManagementTable/unsupported_rule_type_rejected (0.00s)
+--- PASS: TestIPAccessUseCaseDecisionCacheTTLExpires (0.03s)
+PASS
+ok  	proxy/internal/usecase	0.606s

@@ -1,0 +1,11 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/transport/http/gin/aliases.go:1:1
+package gintransport
+
+import "proxy/internal/middleware"
+
+var (
+	IPAccess      = middleware.IPAccess
+	RateLimit     = middleware.RateLimit
+	Recovery      = middleware.Recovery
+	RequestLogger = middleware.RequestLogger
+)

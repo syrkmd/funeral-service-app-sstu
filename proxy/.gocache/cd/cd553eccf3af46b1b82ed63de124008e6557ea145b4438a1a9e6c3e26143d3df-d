@@ -1,0 +1,140 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/repository/rate_limit_repository.go:1:1
+package repository
+
+import (
+	"context"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"proxy/internal/domain"
+)
+
+type RateLimitRepository struct {
+	mu          sync.RWMutex
+	buckets     map[string]domain.BucketState
+	connections sync.Map
+}
+
+type connectionCounter struct {
+	count atomic.Int64
+}
+
+func NewRateLimitRepository() *RateLimitRepository {goCover_d30dacaab5e6__44[0] = 1 ; goCover_d30dacaab5e6__44[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__44[2] = 44 ; goCover_d30dacaab5e6__44[3] = 1;
+	return &RateLimitRepository{
+		buckets: make(map[string]domain.BucketState),
+	}
+}
+
+func (r *RateLimitRepository) GetBucket(_ context.Context, key string) (domain.BucketState, bool, error) {goCover_d30dacaab5e6__45[0] = 1 ; goCover_d30dacaab5e6__45[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__45[2] = 45 ; goCover_d30dacaab5e6__45[3] = 1;
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	state, ok := r.buckets[key]
+	return state, ok, nil
+}
+
+func (r *RateLimitRepository) SaveBucket(_ context.Context, key string, state domain.BucketState) error {goCover_d30dacaab5e6__46[0] = 1 ; goCover_d30dacaab5e6__46[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__46[2] = 46 ; goCover_d30dacaab5e6__46[3] = 1;
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.buckets[key] = state
+	return nil
+}
+
+func (r *RateLimitRepository) DeleteStaleBuckets(_ context.Context, before time.Time) error {goCover_d30dacaab5e6__47[0] = 4 ; goCover_d30dacaab5e6__47[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__47[2] = 47 ; goCover_d30dacaab5e6__47[3] = 1;
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for key, state := range r.buckets {goCover_d30dacaab5e6__47[5] = 1;
+		if state.LastRefill.Before(before) {goCover_d30dacaab5e6__47[6] = 1;
+			delete(r.buckets, key)
+		}
+	}
+
+	goCover_d30dacaab5e6__47[4] = 1;return nil
+}
+
+func (r *RateLimitRepository) SnapshotBuckets(_ context.Context) ([]domain.RateLimitBucketSnapshot, error) {goCover_d30dacaab5e6__48[0] = 3 ; goCover_d30dacaab5e6__48[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__48[2] = 48 ; goCover_d30dacaab5e6__48[3] = 1;
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	snapshots := make([]domain.RateLimitBucketSnapshot, 0, len(r.buckets))
+	for key, state := range r.buckets {goCover_d30dacaab5e6__48[5] = 1;
+		scope, limitType, value := parseBucketKey(key)
+		snapshots = append(snapshots, domain.RateLimitBucketSnapshot{
+			Key:             key,
+			Scope:           scope,
+			LimitType:       limitType,
+			Value:           value,
+			TokensRemaining: state.Tokens,
+			LastRefill:      state.LastRefill,
+		})
+	}
+
+	goCover_d30dacaab5e6__48[4] = 1;return snapshots, nil
+}
+
+func (r *RateLimitRepository) StartCleanup(ctx context.Context, interval, ttl time.Duration) {goCover_d30dacaab5e6__49[0] = 4 ; goCover_d30dacaab5e6__49[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__49[2] = 49 ; goCover_d30dacaab5e6__49[3] = 1;
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {goCover_d30dacaab5e6__49[4] = 1;
+		select {
+		case <-ctx.Done():goCover_d30dacaab5e6__49[5] = 1;
+			return
+		case <-ticker.C:goCover_d30dacaab5e6__49[6] = 1;
+			_ = r.DeleteStaleBuckets(ctx, time.Now().UTC().Add(-ttl))
+		}
+	}
+}
+
+func (r *RateLimitRepository) TryAcquireConnection(_ context.Context, key string, limit int) (bool, int, error) {goCover_d30dacaab5e6__50[0] = 7 ; goCover_d30dacaab5e6__50[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__50[2] = 50 ; goCover_d30dacaab5e6__50[3] = 1;
+	if limit <= 0 {goCover_d30dacaab5e6__50[5] = 1;
+		return true, 0, nil
+	}
+
+	goCover_d30dacaab5e6__50[4] = 1;value, _ := r.connections.LoadOrStore(key, &connectionCounter{})
+	counter := value.(*connectionCounter)
+
+	for {goCover_d30dacaab5e6__50[6] = 1;
+		current := counter.count.Load()
+		if current >= int64(limit) {goCover_d30dacaab5e6__50[8] = 1;
+			return false, int(current), nil
+		}
+		goCover_d30dacaab5e6__50[7] = 1;if counter.count.CompareAndSwap(current, current+1) {goCover_d30dacaab5e6__50[9] = 1;
+			return true, int(current + 1), nil
+		}
+	}
+}
+
+func (r *RateLimitRepository) ReleaseConnection(_ context.Context, key string) error {goCover_d30dacaab5e6__51[0] = 9 ; goCover_d30dacaab5e6__51[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__51[2] = 51 ; goCover_d30dacaab5e6__51[3] = 1;
+	value, exists := r.connections.Load(key)
+	if !exists {goCover_d30dacaab5e6__51[5] = 1;
+		return nil
+	}
+
+	goCover_d30dacaab5e6__51[4] = 1;counter := value.(*connectionCounter)
+	for {goCover_d30dacaab5e6__51[6] = 1;
+		current := counter.count.Load()
+		if current <= 0 {goCover_d30dacaab5e6__51[8] = 1;
+			return nil
+		}
+		goCover_d30dacaab5e6__51[7] = 1;next := current - 1
+		if counter.count.CompareAndSwap(current, next) {goCover_d30dacaab5e6__51[9] = 1;
+			if next == 0 {goCover_d30dacaab5e6__51[11] = 1;
+				r.connections.CompareAndDelete(key, counter)
+			}
+			goCover_d30dacaab5e6__51[10] = 1;return nil
+		}
+	}
+}
+
+func parseBucketKey(key string) (string, string, string) {goCover_d30dacaab5e6__52[0] = 3 ; goCover_d30dacaab5e6__52[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__52[2] = 52 ; goCover_d30dacaab5e6__52[3] = 1;
+	parts := strings.SplitN(key, ":", 3)
+	if len(parts) != 3 {goCover_d30dacaab5e6__52[5] = 1;
+		return "", "", key
+	}
+	goCover_d30dacaab5e6__52[4] = 1;return parts[0], parts[1], parts[2]
+}

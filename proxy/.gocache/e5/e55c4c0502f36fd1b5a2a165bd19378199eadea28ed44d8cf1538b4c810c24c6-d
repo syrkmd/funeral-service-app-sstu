@@ -1,0 +1,236 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/repository/monitoring_repository.go:1:1
+package repository
+
+import (
+	"context"
+	"proxy/internal/domain"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type MonitoringRepository struct {
+	startedAt atomic.Value
+
+	totalRequests            atomic.Uint64
+	activeRequests           atomic.Int64
+	activeConnections        atomic.Int64
+	totalBlockedRequests     atomic.Uint64
+	totalRateLimitedRequests atomic.Uint64
+	totalUpstreamErrors      atomic.Uint64
+	cacheHits                atomic.Uint64
+	cacheMisses              atomic.Uint64
+	cacheStores              atomic.Uint64
+	bytesIn                  atomic.Uint64
+	bytesOut                 atomic.Uint64
+	totalLatencyNanos        atomic.Uint64
+	completedRequests        atomic.Uint64
+
+	mu                 sync.RWMutex
+	requestsByStatus   map[string]uint64
+	requestsByMethod   map[string]uint64
+	requestsByPath     map[string]uint64
+	clients            map[string]*domain.ClientSnapshot
+	accessStats        map[string]uint64
+	matchedRuleStats   map[string]uint64
+	rateViolations     map[string]uint64
+	rateLimitedClients map[string]uint64
+	cacheInvalidations map[string]uint64
+	upstream           domain.UpstreamSnapshot
+}
+
+func NewMonitoringRepository() *MonitoringRepository {goCover_d30dacaab5e6__26[0] = 1 ; goCover_d30dacaab5e6__26[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__26[2] = 26 ; goCover_d30dacaab5e6__26[3] = 1;
+	repo := &MonitoringRepository{
+		requestsByStatus:   make(map[string]uint64),
+		requestsByMethod:   make(map[string]uint64),
+		requestsByPath:     make(map[string]uint64),
+		clients:            make(map[string]*domain.ClientSnapshot),
+		accessStats:        make(map[string]uint64),
+		matchedRuleStats:   make(map[string]uint64),
+		rateViolations:     make(map[string]uint64),
+		rateLimitedClients: make(map[string]uint64),
+		cacheInvalidations: make(map[string]uint64),
+	}
+	repo.startedAt.Store(time.Now().UTC())
+	return repo
+}
+
+func (r *MonitoringRepository) BeginRequest(_ context.Context) {goCover_d30dacaab5e6__27[0] = 1 ; goCover_d30dacaab5e6__27[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__27[2] = 27 ; goCover_d30dacaab5e6__27[3] = 1;
+	r.activeRequests.Add(1)
+	r.activeConnections.Add(1)
+}
+
+func (r *MonitoringRepository) FinishRequest(_ context.Context, record domain.RequestRecord) {goCover_d30dacaab5e6__28[0] = 8 ; goCover_d30dacaab5e6__28[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__28[2] = 28 ; goCover_d30dacaab5e6__28[3] = 1;
+	r.totalRequests.Add(1)
+	r.completedRequests.Add(1)
+	r.activeRequests.Add(-1)
+	r.activeConnections.Add(-1)
+
+	if record.BytesIn > 0 {goCover_d30dacaab5e6__28[7] = 1;
+		r.bytesIn.Add(uint64(record.BytesIn))
+	}
+	goCover_d30dacaab5e6__28[4] = 1;if record.BytesOut > 0 {goCover_d30dacaab5e6__28[8] = 1;
+		r.bytesOut.Add(uint64(record.BytesOut))
+	}
+	goCover_d30dacaab5e6__28[5] = 1;r.totalLatencyNanos.Add(uint64(record.Latency))
+
+	statusKey := strconv.Itoa(record.Status)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.requestsByStatus[statusKey]++
+	r.requestsByMethod[record.Method]++
+	r.requestsByPath[record.Path]++
+
+	client := r.getOrCreateClientLocked(record.ClientIP)
+	client.Requests++
+	if record.BytesIn > 0 {goCover_d30dacaab5e6__28[9] = 1;
+		client.BytesIn += uint64(record.BytesIn)
+	}
+	goCover_d30dacaab5e6__28[6] = 1;if record.BytesOut > 0 {goCover_d30dacaab5e6__28[10] = 1;
+		client.BytesOut += uint64(record.BytesOut)
+	}
+}
+
+func (r *MonitoringRepository) RecordAccessDecision(_ context.Context, event domain.AccessDecisionEvent) {goCover_d30dacaab5e6__29[0] = 4 ; goCover_d30dacaab5e6__29[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__29[2] = 29 ; goCover_d30dacaab5e6__29[3] = 1;
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.accessStats[event.Decision]++
+	if event.RuleID != "" {goCover_d30dacaab5e6__29[5] = 1;
+		r.matchedRuleStats[event.RuleID]++
+	}
+
+	goCover_d30dacaab5e6__29[4] = 1;if event.Decision == "deny" {goCover_d30dacaab5e6__29[6] = 1;
+		r.totalBlockedRequests.Add(1)
+		client := r.getOrCreateClientLocked(event.IP)
+		client.BlockedRequests++
+	}
+}
+
+func (r *MonitoringRepository) RecordRateLimitDecision(_ context.Context, event domain.RateLimitDecisionEvent) {goCover_d30dacaab5e6__30[0] = 5 ; goCover_d30dacaab5e6__30[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__30[2] = 30 ; goCover_d30dacaab5e6__30[3] = 1;
+	if event.Allowed {goCover_d30dacaab5e6__30[6] = 1;
+		return
+	}
+
+	goCover_d30dacaab5e6__30[4] = 1;r.totalBlockedRequests.Add(1)
+	r.totalRateLimitedRequests.Add(1)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := event.LimitType
+	if event.RuleID != "" {goCover_d30dacaab5e6__30[7] = 1;
+		key = event.RuleID + ":" + event.LimitType
+	}
+	goCover_d30dacaab5e6__30[5] = 1;r.rateViolations[key]++
+	r.rateLimitedClients[event.IP]++
+
+	client := r.getOrCreateClientLocked(event.IP)
+	client.BlockedRequests++
+	client.RateLimitedRequests++
+}
+
+func (r *MonitoringRepository) RecordUpstream(_ context.Context, event domain.UpstreamEvent) {goCover_d30dacaab5e6__31[0] = 3 ; goCover_d30dacaab5e6__31[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__31[2] = 31 ; goCover_d30dacaab5e6__31[3] = 1;
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.upstream.TotalRequests++
+	r.upstream.LastStatus = event.StatusCode
+	r.upstream.LastUpdatedAt = time.Now().UTC()
+	r.upstream.LatencyMS = float64(event.Latency.Microseconds()) / 1000
+
+	if event.Error != "" {goCover_d30dacaab5e6__31[5] = 1;
+		r.totalUpstreamErrors.Add(1)
+		r.upstream.Errors++
+		r.upstream.LastError = event.Error
+		r.upstream.Healthy = false
+		return
+	}
+
+	goCover_d30dacaab5e6__31[4] = 1;r.upstream.LastError = ""
+	r.upstream.Healthy = true
+}
+
+func (r *MonitoringRepository) RecordCacheEvent(_ context.Context, event domain.CacheEvent) {goCover_d30dacaab5e6__32[0] = 5 ; goCover_d30dacaab5e6__32[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__32[2] = 32 ; goCover_d30dacaab5e6__32[3] = 1;
+	switch event.Action {
+	case "hit":goCover_d30dacaab5e6__32[4] = 1;
+		r.cacheHits.Add(1)
+	case "miss":goCover_d30dacaab5e6__32[5] = 1;
+		r.cacheMisses.Add(1)
+	case "store":goCover_d30dacaab5e6__32[6] = 1;
+		r.cacheStores.Add(1)
+	default:goCover_d30dacaab5e6__32[7] = 1;
+		r.mu.Lock()
+		r.cacheInvalidations[event.Action]++
+		r.mu.Unlock()
+	}
+}
+
+func (r *MonitoringRepository) Snapshot(_ context.Context) (domain.MonitoringSnapshot, error) {goCover_d30dacaab5e6__33[0] = 5 ; goCover_d30dacaab5e6__33[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__33[2] = 33 ; goCover_d30dacaab5e6__33[3] = 1;
+	snapshot := domain.MonitoringSnapshot{
+		StartedAt:                r.startedAt.Load().(time.Time),
+		TotalRequests:            r.totalRequests.Load(),
+		ActiveRequests:           r.activeRequests.Load(),
+		ActiveConnections:        r.activeConnections.Load(),
+		TotalBlockedRequests:     r.totalBlockedRequests.Load(),
+		TotalRateLimitedRequests: r.totalRateLimitedRequests.Load(),
+		TotalUpstreamErrors:      r.totalUpstreamErrors.Load(),
+		CacheHits:                r.cacheHits.Load(),
+		CacheMisses:              r.cacheMisses.Load(),
+		CacheStores:              r.cacheStores.Load(),
+		BytesIn:                  r.bytesIn.Load(),
+		BytesOut:                 r.bytesOut.Load(),
+	}
+
+	completed := r.completedRequests.Load()
+	if completed > 0 {goCover_d30dacaab5e6__33[6] = 1;
+		snapshot.AverageLatencyMS = float64(r.totalLatencyNanos.Load()) / float64(completed) / float64(time.Millisecond)
+	}
+	goCover_d30dacaab5e6__33[4] = 1;uptimeSeconds := time.Since(snapshot.StartedAt).Seconds()
+	if uptimeSeconds > 0 {goCover_d30dacaab5e6__33[7] = 1;
+		snapshot.RequestsPerSecond = float64(snapshot.TotalRequests) / uptimeSeconds
+	}
+
+	goCover_d30dacaab5e6__33[5] = 1;r.mu.RLock()
+	snapshot.RequestsByStatus = cloneUint64Map(r.requestsByStatus)
+	snapshot.RequestsByMethod = cloneUint64Map(r.requestsByMethod)
+	snapshot.RequestsByPath = cloneUint64Map(r.requestsByPath)
+	snapshot.AccessDecisionStats = cloneUint64Map(r.accessStats)
+	snapshot.MatchedRuleStats = cloneUint64Map(r.matchedRuleStats)
+	snapshot.RateLimitViolations = cloneUint64Map(r.rateViolations)
+	snapshot.RateLimitedClients = cloneUint64Map(r.rateLimitedClients)
+	snapshot.CacheInvalidations = cloneUint64Map(r.cacheInvalidations)
+	snapshot.Upstream = r.upstream
+	snapshot.Clients = cloneClients(r.clients)
+	r.mu.RUnlock()
+
+	return snapshot, nil
+}
+
+func (r *MonitoringRepository) getOrCreateClientLocked(ip string) *domain.ClientSnapshot {goCover_d30dacaab5e6__34[0] = 3 ; goCover_d30dacaab5e6__34[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__34[2] = 34 ; goCover_d30dacaab5e6__34[3] = 1;
+	client, exists := r.clients[ip]
+	if !exists {goCover_d30dacaab5e6__34[5] = 1;
+		client = &domain.ClientSnapshot{IP: ip}
+		r.clients[ip] = client
+	}
+	goCover_d30dacaab5e6__34[4] = 1;return client
+}
+
+func cloneUint64Map(source map[string]uint64) map[string]uint64 {goCover_d30dacaab5e6__35[0] = 3 ; goCover_d30dacaab5e6__35[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__35[2] = 35 ; goCover_d30dacaab5e6__35[3] = 1;
+	cloned := make(map[string]uint64, len(source))
+	for key, value := range source {goCover_d30dacaab5e6__35[5] = 1;
+		cloned[key] = value
+	}
+	goCover_d30dacaab5e6__35[4] = 1;return cloned
+}
+
+func cloneClients(source map[string]*domain.ClientSnapshot) []domain.ClientSnapshot {goCover_d30dacaab5e6__36[0] = 3 ; goCover_d30dacaab5e6__36[1] = goCover_d30dacaab5e6_P ; goCover_d30dacaab5e6__36[2] = 36 ; goCover_d30dacaab5e6__36[3] = 1;
+	clients := make([]domain.ClientSnapshot, 0, len(source))
+	for _, client := range source {goCover_d30dacaab5e6__36[5] = 1;
+		clients = append(clients, *client)
+	}
+	goCover_d30dacaab5e6__36[4] = 1;return clients
+}

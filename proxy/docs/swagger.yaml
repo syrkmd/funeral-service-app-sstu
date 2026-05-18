@@ -14,6 +14,128 @@ definitions:
         type: string
       reason:
         type: string
+      verification_required:
+        type: boolean
+    type: object
+  domain.BlockedClient:
+    properties:
+      count:
+        type: integer
+      ip:
+        type: string
+    type: object
+  domain.ClientSnapshot:
+    properties:
+      blocked_requests:
+        type: integer
+      bytes_in:
+        type: integer
+      bytes_out:
+        type: integer
+      ip:
+        type: string
+      rate_limited_requests:
+        type: integer
+      requests:
+        type: integer
+    type: object
+  domain.DashboardClients:
+    properties:
+      blocked_clients:
+        items:
+          $ref: '#/definitions/domain.ClientSnapshot'
+        type: array
+      rate_limited_clients:
+        items:
+          $ref: '#/definitions/domain.ClientSnapshot'
+        type: array
+      top_clients_by_requests:
+        items:
+          $ref: '#/definitions/domain.ClientSnapshot'
+        type: array
+      top_clients_by_traffic:
+        items:
+          $ref: '#/definitions/domain.ClientSnapshot'
+        type: array
+    type: object
+  domain.DashboardIPAccess:
+    properties:
+      allowlist:
+        items:
+          $ref: '#/definitions/domain.IPRule'
+        type: array
+      deny_statistics:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      denylist:
+        items:
+          $ref: '#/definitions/domain.IPRule'
+        type: array
+      graylist:
+        items:
+          $ref: '#/definitions/domain.IPRule'
+        type: array
+      matched_rules_statistics:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+    type: object
+  domain.DashboardOverview:
+    properties:
+      active_connections:
+        type: integer
+      average_latency_ms:
+        type: number
+      blocked_requests:
+        type: integer
+      current_rps:
+        type: number
+      total_requests:
+        type: integer
+      upstream_status:
+        type: string
+      uptime:
+        type: string
+    type: object
+  domain.DashboardRateLimits:
+    properties:
+      active_rate_limit_rules:
+        items:
+          $ref: '#/definitions/domain.RateLimitRule'
+        type: array
+      blocked_ips:
+        items:
+          $ref: '#/definitions/domain.BlockedClient'
+        type: array
+      current_bucket_usage:
+        items:
+          $ref: '#/definitions/domain.RateLimitBucketSnapshot'
+        type: array
+      violations:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+    type: object
+  domain.DashboardUpstream:
+    properties:
+      last_updated_at:
+        type: string
+      last_upstream_error:
+        type: string
+      last_upstream_status:
+        type: integer
+      total_upstream_requests:
+        type: integer
+      upstream_errors:
+        type: integer
+      upstream_health:
+        type: boolean
+      upstream_latency_ms:
+        type: number
     type: object
   domain.IPRule:
     properties:
@@ -36,6 +158,109 @@ definitions:
     - ListTypeAllow
     - ListTypeDeny
     - ListTypeGray
+  domain.MetricsResponse:
+    properties:
+      active_connections:
+        type: integer
+      active_requests:
+        type: integer
+      average_latency_ms:
+        type: number
+      bytes_in:
+        type: integer
+      bytes_out:
+        type: integer
+      cache_hits:
+        type: integer
+      cache_invalidations:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      cache_misses:
+        type: integer
+      cache_stores:
+        type: integer
+      requests_by_method:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      requests_by_path:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      requests_by_status:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      requests_per_second:
+        type: number
+      total_blocked_requests:
+        type: integer
+      total_rate_limited_requests:
+        type: integer
+      total_requests:
+        type: integer
+      total_upstream_errors:
+        type: integer
+      uptime:
+        type: string
+    type: object
+  domain.RateLimitBucketSnapshot:
+    properties:
+      key:
+        type: string
+      last_refill:
+        type: string
+      scope:
+        type: string
+      tokens_remaining:
+        type: number
+      type:
+        type: string
+      value:
+        type: string
+    type: object
+  domain.RateLimitRule:
+    properties:
+      cps:
+        type: integer
+      description:
+        type: string
+      download_bps:
+        type: integer
+      id:
+        type: string
+      max_connections:
+        type: integer
+      rpd:
+        type: integer
+      rph:
+        type: integer
+      rpm:
+        type: integer
+      rps:
+        type: integer
+      scope:
+        $ref: '#/definitions/domain.RateLimitScope'
+      total_bytes:
+        type: integer
+      upload_bps:
+        type: integer
+      value:
+        type: string
+    type: object
+  domain.RateLimitScope:
+    enum:
+    - ip
+    - subnet
+    type: string
+    x-enum-varnames:
+    - RateLimitScopeIP
+    - RateLimitScopeSubnet
   gintransport.CreateRuleRequest:
     properties:
       description:
@@ -50,17 +275,275 @@ definitions:
     - type
     - value
     type: object
+  gintransport.deleteCountResponse:
+    properties:
+      deleted_count:
+        type: integer
+    type: object
   gintransport.errorResponse:
     properties:
       error:
         type: string
     type: object
+  gintransport.verifyCaptchaRequest:
+    properties:
+      answer:
+        type: string
+    required:
+    - answer
+    type: object
 info:
   contact: {}
-  description: Production-ready HTTP proxy service with IP access control.
+  description: HTTP proxy service.
   title: Proxy Service API
   version: "1.0"
 paths:
+  /api/cache/all:
+    delete:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Clear all cache entries
+      tags:
+      - cache
+  /api/cache/expired:
+    delete:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Invalidate expired cache entries
+      tags:
+      - cache
+  /api/cache/key/{key}:
+    delete:
+      parameters:
+      - description: Cache key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Invalidate cache by exact key
+      tags:
+      - cache
+  /api/cache/prefix:
+    delete:
+      parameters:
+      - description: Cache key prefix
+        in: query
+        name: value
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Invalidate cache by key prefix
+      tags:
+      - cache
+  /api/cache/regex:
+    delete:
+      parameters:
+      - description: Go regexp pattern
+        in: query
+        name: pattern
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Invalidate cache by regex
+      tags:
+      - cache
+  /api/cache/tags/{tag}:
+    delete:
+      parameters:
+      - description: Cache tag
+        in: path
+        name: tag
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gintransport.deleteCountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Invalidate cache by tag
+      tags:
+      - cache
+  /api/captcha/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Captcha payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gintransport.verifyCaptchaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Verify graylist captcha
+      tags:
+      - captcha
+  /api/dashboard/clients:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.DashboardClients'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get dashboard client stats
+      tags:
+      - dashboard
+  /api/dashboard/ip_access:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.DashboardIPAccess'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get IP access dashboard data
+      tags:
+      - dashboard
+  /api/dashboard/overview:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.DashboardOverview'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get dashboard overview
+      tags:
+      - dashboard
+  /api/dashboard/rate_limits:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.DashboardRateLimits'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get rate limit dashboard data
+      tags:
+      - dashboard
+  /api/dashboard/upstream:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.DashboardUpstream'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get upstream status
+      tags:
+      - dashboard
   /api/ip_access/check:
     get:
       parameters:
@@ -149,4 +632,20 @@ paths:
       summary: Delete IP rule
       tags:
       - ip_access
+  /api/metrics:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.MetricsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gintransport.errorResponse'
+      summary: Get service metrics
+      tags:
+      - monitoring
 swagger: "2.0"

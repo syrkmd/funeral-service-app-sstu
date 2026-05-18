@@ -46,12 +46,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create watcher: %w", err)
 	}
-	defer func() {
-		err := watcher.Close()
-		if err != nil {
-			fmt.Println("failed to close watcher:", err)
-		}
-	}()
+	defer func(watcher *fsnotify.Watcher) {
+		_ = watcher.Close()
+	}(watcher)
 
 	dir := filepath.Dir(m.path)
 	filename := filepath.Base(m.path)

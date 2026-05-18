@@ -1,5 +1,5 @@
 server:
-  address: ":8080"
+  address: ":8090"
   read_timeout: 5s
   write_timeout: 15s
   idle_timeout: 60s
@@ -11,6 +11,8 @@ proxy:
 
 access:
   default_policy: "allow"
+  verification_ttl: 15m
+  decision_cache_ttl: 5m
   lists:
     - id: "deny-private-range"
       type: "denylist"
@@ -23,7 +25,7 @@ access:
     - id: "gray-office-range"
       type: "graylist"
       value: "192.168.1.10-192.168.1.50"
-      description: "gray traffic that falls back to default policy"
+      description: "gray traffic requires captcha verification"
 
 rate_limit:
   enabled: true
@@ -31,6 +33,12 @@ rate_limit:
   rpm: 100
   rph: 1000
   rpd: 10000
+  cps: 20
+  max_connections: 50
+  upload_bps: 1048576
+  download_bps: 2097152
+  total_bytes: 10485760
+  total_window: 1h
   subnets:
     - id: "office-subnet"
       cidr: "192.168.1.0/24"
@@ -38,7 +46,50 @@ rate_limit:
       rpm: 500
       rph: 5000
       rpd: 50000
+      cps: 50
+      max_connections: 100
+      upload_bps: 5242880
+      download_bps: 10485760
+      total_bytes: 104857600
+      total_window: 1h
       description: "shared subnet budget"
+
+cache:
+  enabled: true
+  default_ttl: 5m
+  cleanup_interval: 1m
+  max_entry_size: 1048576
+  min_entry_size: 64
+  cache_2xx: true
+  cache_3xx: false
+  cache_4xx: false
+  cache_5xx: false
+  ttl_2xx: 5m
+  ttl_3xx: 10m
+  ttl_4xx: 30s
+  ttl_5xx: 10s
+  excluded_headers:
+    - Authorization
+    - Cookie
+    - Set-Cookie
+  excluded_content_types:
+    - text/event-stream
+  rules:
+    - name: "httpbin-cacheable-get"
+      domains:
+        - "httpbin.org"
+      paths:
+        - "/anything/cacheable/*"
+      ttl_2xx: 2m
+      ttl_3xx: 5m
+      min_entry_size: 0
+      max_entry_size: 262144
+      cache_4xx: true
+      ttl_4xx: 15s
+      excluded_headers:
+        - Authorization
+        - Cookie
+        - Set-Cookie
 
 logging:
   level: "info"

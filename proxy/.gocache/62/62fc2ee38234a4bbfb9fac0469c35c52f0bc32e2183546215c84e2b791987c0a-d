@@ -1,0 +1,131 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/transport/http/gin/ip_access_controller.go:1:1
+package gintransport
+
+import (
+	"context"
+	"errors"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"proxy/internal/domain"
+	"proxy/internal/usecase"
+)
+
+type ControllerIPAccessUseCase interface {
+	ListRules(ctx context.Context) ([]domain.IPRule, error)
+	AddRule(ctx context.Context, input usecase.AddRuleInput) (domain.IPRule, error)
+	DeleteRule(ctx context.Context, id string) error
+	CheckIP(ctx context.Context, rawIP string) (domain.AccessDecision, error)
+	VerifyCaptcha(ctx context.Context, rawIP string, answer string) error
+}
+
+type CreateRuleRequest struct {
+	ID          string `json:"id"`
+	Type        string `json:"type" binding:"required"`
+	Value       string `json:"value" binding:"required"`
+	Description string `json:"description"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type IPAccessController struct {
+	useCase ControllerIPAccessUseCase
+}
+
+func NewIPAccessController(useCase ControllerIPAccessUseCase) *IPAccessController {goCover_867944a6df24__10[0] = 1 ; goCover_867944a6df24__10[1] = goCover_867944a6df24_P ; goCover_867944a6df24__10[2] = 10 ; goCover_867944a6df24__10[3] = 1;
+	return &IPAccessController{useCase: useCase}
+}
+
+// ListRules godoc
+// @Summary List IP rules
+// @Tags ip_access
+// @Produce json
+// @Success 200 {array} domain.IPRule
+// @Failure 500 {object} errorResponse
+// @Router /api/ip_access/lists [get]
+func (h *IPAccessController) ListRules(c *gin.Context) {goCover_867944a6df24__11[0] = 3 ; goCover_867944a6df24__11[1] = goCover_867944a6df24_P ; goCover_867944a6df24__11[2] = 11 ; goCover_867944a6df24__11[3] = 1;
+	rules, err := h.useCase.ListRules(c.Request.Context())
+	if err != nil {goCover_867944a6df24__11[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__11[4] = 1;c.JSON(http.StatusOK, rules)
+}
+
+// CreateRule godoc
+// @Summary Create IP rule
+// @Tags ip_access
+// @Accept json
+// @Produce json
+// @Param request body CreateRuleRequest true "Rule payload"
+// @Success 201 {object} domain.IPRule
+// @Failure 400 {object} errorResponse
+// @Failure 409 {object} errorResponse
+// @Router /api/ip_access/lists [post]
+func (h *IPAccessController) CreateRule(c *gin.Context) {goCover_867944a6df24__12[0] = 7 ; goCover_867944a6df24__12[1] = goCover_867944a6df24_P ; goCover_867944a6df24__12[2] = 12 ; goCover_867944a6df24__12[3] = 1;
+	var request CreateRuleRequest
+	if err := c.ShouldBindJSON(&request); err != nil {goCover_867944a6df24__12[6] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__12[4] = 1;rule, err := h.useCase.AddRule(c.Request.Context(), usecase.AddRuleInput{
+		ID:          request.ID,
+		Type:        request.Type,
+		Value:       request.Value,
+		Description: request.Description,
+	})
+	if err != nil {goCover_867944a6df24__12[7] = 1;
+		status := http.StatusBadRequest
+		if errors.Is(err, domain.ErrDuplicateRuleID) {goCover_867944a6df24__12[9] = 1;
+			status = http.StatusConflict
+		}
+		goCover_867944a6df24__12[8] = 1;c.JSON(status, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__12[5] = 1;c.JSON(http.StatusCreated, rule)
+}
+
+// DeleteRule godoc
+// @Summary Delete IP rule
+// @Tags ip_access
+// @Produce json
+// @Param id path string true "Rule ID"
+// @Success 204
+// @Failure 404 {object} errorResponse
+// @Router /api/ip_access/lists/{id} [delete]
+func (h *IPAccessController) DeleteRule(c *gin.Context) {goCover_867944a6df24__13[0] = 5 ; goCover_867944a6df24__13[1] = goCover_867944a6df24_P ; goCover_867944a6df24__13[2] = 13 ; goCover_867944a6df24__13[3] = 1;
+	if err := h.useCase.DeleteRule(c.Request.Context(), c.Param("id")); err != nil {goCover_867944a6df24__13[5] = 1;
+		status := http.StatusInternalServerError
+		if errors.Is(err, domain.ErrRuleNotFound) {goCover_867944a6df24__13[7] = 1;
+			status = http.StatusNotFound
+		}
+		goCover_867944a6df24__13[6] = 1;c.JSON(status, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__13[4] = 1;c.Status(http.StatusNoContent)
+}
+
+// CheckIP godoc
+// @Summary Check IP access decision
+// @Tags ip_access
+// @Produce json
+// @Param ip query string true "IP address"
+// @Success 200 {object} domain.AccessDecision
+// @Failure 400 {object} errorResponse
+// @Router /api/ip_access/check [get]
+func (h *IPAccessController) CheckIP(c *gin.Context) {goCover_867944a6df24__14[0] = 3 ; goCover_867944a6df24__14[1] = goCover_867944a6df24_P ; goCover_867944a6df24__14[2] = 14 ; goCover_867944a6df24__14[3] = 1;
+	decision, err := h.useCase.CheckIP(c.Request.Context(), c.Query("ip"))
+	if err != nil {goCover_867944a6df24__14[5] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__14[4] = 1;c.JSON(http.StatusOK, decision)
+}

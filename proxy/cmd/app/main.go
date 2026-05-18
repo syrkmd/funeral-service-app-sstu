@@ -9,20 +9,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 
-	_ "proxy/docs"
+	_ "github.com/syrkmd/funeral-service-app-sstu/proxy/docs"
 
-	"proxy/internal/config"
-	"proxy/internal/logger"
-	"proxy/internal/repository"
-	_jsii "proxy/internal/transport/http/gin"
-	"proxy/internal/usecase"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/config"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/logger"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/repository"
+	_jsii "github.com/syrkmd/funeral-service-app-sstu/proxy/internal/transport/http/gin"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/usecase"
 )
 
 // @title Proxy Service API
 // @version 1.0
-// @description Production-ready HTTP proxy service with IP access control.
+// @description HTTP proxy service.
 // @BasePath /
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
@@ -45,12 +48,20 @@ func main() {
 	if err != nil {
 		appLogger.Fatal().Err(err).Msg("failed to initialize IP access repository")
 	}
+	verifiedIPRepo := repository.NewVerifiedIPRepository(cfgManager.Current().Access.VerificationTTL.Duration)
+	cacheRepo := repository.NewCacheRepository(cfgManager.Current().Cache.CleanupInterval.Duration)
+	monitoringRepo := repository.NewMonitoringRepository()
+	ipAccessUseCase := usecase.NewIPAccessUseCase(ipRepo, verifiedIPRepo, 4096)
+	ipAccessUseCase.SetDecisionCacheTTL(cfgManager.Current().Access.DecisionCacheTTL.Duration)
 
 	cfgManager.Subscribe(func(cfg config.Config) {
 		if err := ipRepo.ApplyConfig(cfg); err != nil {
 			appLogger.Error().Err(err).Msg("failed to apply reloaded config")
 			return
 		}
+		verifiedIPRepo.SetTTL(cfg.Access.VerificationTTL.Duration)
+		ipAccessUseCase.SetDecisionCacheTTL(cfg.Access.DecisionCacheTTL.Duration)
+		cacheRepo.SetCleanupInterval(cfg.Cache.CleanupInterval.Duration)
 
 		if updatedLogger, err := logger.New(cfg.Logging.Level); err == nil {
 			log.Logger = updatedLogger
@@ -59,16 +70,26 @@ func main() {
 		}
 	})
 
-	ipAccessUseCase := usecase.NewIPAccessUseCase(ipRepo, 4096)
 	rateRepo := repository.NewRateLimitRepository()
-	rateUseCase := usecase.NewRateLimitUseCase(rateRepo, cfgManager)
+	rateUseCase := usecase.NewRateLimitUseCase(rateRepo, cfgManager, logger.NewUseCaseAdapter(&log.Logger))
+	cacheUseCase := usecase.NewCacheUseCase(cacheRepo, cfgManager)
+	promRegistry := prometheus.NewRegistry()
+	promRegistry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	prometheusRepo := repository.NewPrometheusRepository(promRegistry)
+	monitoringUseCase := usecase.NewMonitoringUseCase(monitoringRepo, prometheusRepo, ipAccessUseCase, rateUseCase)
 	proxyUseCase := usecase.NewProxyUseCase(cfgManager)
 
 	router := _jsii.NewRouter(_jsii.Dependencies{
-		Logger:           &log.Logger,
-		IPAccessUseCase:  ipAccessUseCase,
-		RateLimitUseCase: rateUseCase,
-		ProxyUseCase:     proxyUseCase,
+		Logger:            &log.Logger,
+		MetricsHandler:    promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
+		MonitoringUseCase: monitoringUseCase,
+		IPAccessUseCase:   ipAccessUseCase,
+		RateLimitUseCase:  rateUseCase,
+		CacheUseCase:      cacheUseCase,
+		ProxyUseCase:      proxyUseCase,
 	})
 
 	server := &http.Server{
@@ -89,6 +110,8 @@ func main() {
 	}()
 
 	go rateRepo.StartCleanup(ctx, 10*time.Minute, 48*time.Hour)
+	go verifiedIPRepo.StartCleanup(ctx, time.Minute)
+	go cacheRepo.StartCleanup(ctx)
 
 	go func() {
 		log.Info().Str("address", server.Addr).Msg("starting server")

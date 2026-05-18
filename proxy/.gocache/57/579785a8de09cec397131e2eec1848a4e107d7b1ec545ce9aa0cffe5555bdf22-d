@@ -1,0 +1,101 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/pkg/ipmatch/matcher.go:1:1
+package ipmatch
+
+import (
+	"fmt"
+	"net/netip"
+	"strings"
+)
+
+type Matcher interface {
+	Match(addr netip.Addr) bool
+	Description() string
+}
+
+type singleMatcher struct {
+	addr netip.Addr
+}
+
+func (m singleMatcher) Match(addr netip.Addr) bool {goCover_af7fd95183bf__0[0] = 1 ; goCover_af7fd95183bf__0[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__0[2] = 0 ; goCover_af7fd95183bf__0[3] = 1;
+	return m.addr.Compare(addr.Unmap()) == 0
+}
+
+func (m singleMatcher) Description() string {goCover_af7fd95183bf__1[0] = 1 ; goCover_af7fd95183bf__1[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__1[2] = 1 ; goCover_af7fd95183bf__1[3] = 1;
+	return m.addr.String()
+}
+
+type prefixMatcher struct {
+	prefix netip.Prefix
+}
+
+func (m prefixMatcher) Match(addr netip.Addr) bool {goCover_af7fd95183bf__2[0] = 1 ; goCover_af7fd95183bf__2[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__2[2] = 2 ; goCover_af7fd95183bf__2[3] = 1;
+	return m.prefix.Contains(addr.Unmap())
+}
+
+func (m prefixMatcher) Description() string {goCover_af7fd95183bf__3[0] = 1 ; goCover_af7fd95183bf__3[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__3[2] = 3 ; goCover_af7fd95183bf__3[3] = 1;
+	return m.prefix.String()
+}
+
+type rangeMatcher struct {
+	from netip.Addr
+	to   netip.Addr
+}
+
+func (m rangeMatcher) Match(addr netip.Addr) bool {goCover_af7fd95183bf__4[0] = 1 ; goCover_af7fd95183bf__4[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__4[2] = 4 ; goCover_af7fd95183bf__4[3] = 1;
+	unmapped := addr.Unmap()
+	return m.from.Compare(unmapped) <= 0 && m.to.Compare(unmapped) >= 0
+}
+
+func (m rangeMatcher) Description() string {goCover_af7fd95183bf__5[0] = 1 ; goCover_af7fd95183bf__5[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__5[2] = 5 ; goCover_af7fd95183bf__5[3] = 1;
+	return fmt.Sprintf("%s-%s", m.from, m.to)
+}
+
+func Parse(value string) (Matcher, error) {goCover_af7fd95183bf__6[0] = 21 ; goCover_af7fd95183bf__6[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__6[2] = 6 ; goCover_af7fd95183bf__6[3] = 1;
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {goCover_af7fd95183bf__6[8] = 1;
+		return nil, fmt.Errorf("empty matcher")
+	}
+
+	goCover_af7fd95183bf__6[4] = 1;if strings.Contains(trimmed, "/") {goCover_af7fd95183bf__6[9] = 1;
+		prefix, err := netip.ParsePrefix(trimmed)
+		if err != nil {goCover_af7fd95183bf__6[11] = 1;
+			return nil, fmt.Errorf("parse CIDR %q: %w", trimmed, err)
+		}
+		goCover_af7fd95183bf__6[10] = 1;return prefixMatcher{prefix: prefix.Masked()}, nil
+	}
+
+	goCover_af7fd95183bf__6[5] = 1;if strings.Contains(trimmed, "-") {goCover_af7fd95183bf__6[12] = 1;
+		parts := strings.SplitN(trimmed, "-", 2)
+		if len(parts) != 2 {goCover_af7fd95183bf__6[18] = 1;
+			return nil, fmt.Errorf("invalid IP range %q", trimmed)
+		}
+
+		goCover_af7fd95183bf__6[13] = 1;from, err := netip.ParseAddr(strings.TrimSpace(parts[0]))
+		if err != nil {goCover_af7fd95183bf__6[19] = 1;
+			return nil, fmt.Errorf("parse range start %q: %w", parts[0], err)
+		}
+
+		goCover_af7fd95183bf__6[14] = 1;to, err := netip.ParseAddr(strings.TrimSpace(parts[1]))
+		if err != nil {goCover_af7fd95183bf__6[20] = 1;
+			return nil, fmt.Errorf("parse range end %q: %w", parts[1], err)
+		}
+
+		goCover_af7fd95183bf__6[15] = 1;from = from.Unmap()
+		to = to.Unmap()
+		if from.BitLen() != to.BitLen() {goCover_af7fd95183bf__6[21] = 1;
+			return nil, fmt.Errorf("range endpoints must use the same address family")
+		}
+		goCover_af7fd95183bf__6[16] = 1;if from.Compare(to) > 0 {goCover_af7fd95183bf__6[22] = 1;
+			return nil, fmt.Errorf("range start must be <= range end")
+		}
+
+		goCover_af7fd95183bf__6[17] = 1;return rangeMatcher{from: from, to: to}, nil
+	}
+
+	goCover_af7fd95183bf__6[6] = 1;addr, err := netip.ParseAddr(trimmed)
+	if err != nil {goCover_af7fd95183bf__6[23] = 1;
+		return nil, fmt.Errorf("parse IP %q: %w", trimmed, err)
+	}
+
+	goCover_af7fd95183bf__6[7] = 1;return singleMatcher{addr: addr.Unmap()}, nil
+}

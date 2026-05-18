@@ -11,7 +11,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"proxy/internal/domain"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/domain"
 )
 
 type AddRuleInput struct {
@@ -22,52 +22,77 @@ type AddRuleInput struct {
 }
 
 type cachedDecision struct {
-	version  uint64
-	decision domain.AccessDecision
+	version   uint64
+	decision  domain.AccessDecision
+	expiresAt time.Time
 }
 
 type decisionCache struct {
 	mu    sync.Mutex
+	ttl   time.Duration
 	cache *lru.Cache[string, cachedDecision]
 }
 
-func newDecisionCache(size int) (*decisionCache, error) {
+func newDecisionCache(size int, ttl time.Duration) (*decisionCache, error) {
 	cache, err := lru.New[string, cachedDecision](size)
 	if err != nil {
 		return nil, err
 	}
 
-	return &decisionCache{cache: cache}, nil
+	return &decisionCache{ttl: ttl, cache: cache}, nil
 }
 
 func (c *decisionCache) Get(key string) (cachedDecision, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.cache.Get(key)
+	value, ok := c.cache.Get(key)
+	if !ok {
+		return cachedDecision{}, false
+	}
+	if !value.expiresAt.IsZero() && time.Now().UTC().After(value.expiresAt) {
+		c.cache.Remove(key)
+		return cachedDecision{}, false
+	}
+	return value, true
 }
 
 func (c *decisionCache) Add(key string, value cachedDecision) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.ttl > 0 {
+		value.expiresAt = time.Now().UTC().Add(c.ttl)
+	}
 	c.cache.Add(key, value)
 }
 
-type IPAccessUseCase struct {
-	repo       IPAccessRepository
-	cache      *decisionCache
-	idSequence atomic.Uint64
+func (c *decisionCache) SetTTL(ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ttl = ttl
 }
 
-func NewIPAccessUseCase(repo IPAccessRepository, cacheSize int) *IPAccessUseCase {
-	cache, err := newDecisionCache(cacheSize)
+type IPAccessUseCase struct {
+	repo         IPAccessRepository
+	verifiedRepo VerifiedIPRepository
+	cache        *decisionCache
+	idSequence   atomic.Uint64
+}
+
+func NewIPAccessUseCase(repo IPAccessRepository, verifiedRepo VerifiedIPRepository, cacheSize int) *IPAccessUseCase {
+	cache, err := newDecisionCache(cacheSize, 5*time.Minute)
 	if err != nil {
 		panic(err)
 	}
 
 	return &IPAccessUseCase{
-		repo:  repo,
-		cache: cache,
+		repo:         repo,
+		verifiedRepo: verifiedRepo,
+		cache:        cache,
 	}
+}
+
+func (u *IPAccessUseCase) SetDecisionCacheTTL(ttl time.Duration) {
+	u.cache.SetTTL(ttl)
 }
 
 func (u *IPAccessUseCase) ListRules(ctx context.Context) ([]domain.IPRule, error) {
@@ -125,51 +150,86 @@ func (u *IPAccessUseCase) CheckIP(ctx context.Context, rawIP string) (domain.Acc
 		return cached.decision, nil
 	}
 
-	decision := evaluateSnapshot(addr, snapshot)
-	u.cache.Add(cacheKey, cachedDecision{
-		version:  snapshot.Version,
-		decision: decision,
-	})
+	decision, cacheable, err := u.evaluateSnapshot(ctx, addr, snapshot)
+	if err != nil {
+		return domain.AccessDecision{}, err
+	}
+	if cacheable {
+		u.cache.Add(cacheKey, cachedDecision{
+			version:  snapshot.Version,
+			decision: decision,
+		})
+	}
 
 	return decision, nil
 }
 
-func evaluateSnapshot(addr netip.Addr, snapshot domain.AccessSnapshot) domain.AccessDecision {
-	ip := addr.String()
-
-	for _, rule := range snapshot.DenyRules {
-		if rule.Matcher.Match(addr) {
-			return domain.AccessDecision{
-				IP:            ip,
-				Allowed:       false,
-				Decision:      "deny",
-				Reason:        "matched denylist rule",
-				MatchedRuleID: rule.Rule.ID,
-				MatchedValue:  rule.Rule.Value,
-			}
-		}
+func (u *IPAccessUseCase) VerifyCaptcha(ctx context.Context, rawIP string, answer string) error {
+	if strings.TrimSpace(answer) != "1234" {
+		return domain.ErrInvalidCaptcha
 	}
 
-	for _, rule := range snapshot.AllowRules {
-		if rule.Matcher.Match(addr) {
+	addr, err := netip.ParseAddr(strings.TrimSpace(rawIP))
+	if err != nil {
+		return fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+
+	return u.verifiedRepo.MarkVerified(ctx, addr.Unmap().String())
+}
+
+func (u *IPAccessUseCase) evaluateSnapshot(ctx context.Context, addr netip.Addr, snapshot domain.AccessSnapshot) (domain.AccessDecision, bool, error) {
+	ip := addr.String()
+
+	if rule, ok := snapshot.DenyLookup.Match(addr); ok {
+		return domain.AccessDecision{
+			IP:            ip,
+			Allowed:       false,
+			Decision:      "deny",
+			Reason:        "matched denylist rule",
+			MatchedRuleID: rule.Rule.ID,
+			MatchedValue:  rule.Rule.Value,
+		}, true, nil
+	}
+
+	if rule, ok := snapshot.AllowLookup.Match(addr); ok {
+		return domain.AccessDecision{
+			IP:            ip,
+			Allowed:       true,
+			Decision:      "allow",
+			Reason:        "matched allowlist rule",
+			MatchedRuleID: rule.Rule.ID,
+			MatchedValue:  rule.Rule.Value,
+		}, true, nil
+	}
+
+	if rule, ok := snapshot.GrayLookup.Match(addr); ok {
+		verified, err := u.verifiedRepo.IsVerified(ctx, ip)
+		if err != nil {
+			return domain.AccessDecision{}, false, err
+		}
+		if verified {
 			return domain.AccessDecision{
 				IP:            ip,
 				Allowed:       true,
 				Decision:      "allow",
-				Reason:        "matched allowlist rule",
+				Reason:        "matched graylist rule with active verification",
 				MatchedRuleID: rule.Rule.ID,
 				MatchedValue:  rule.Rule.Value,
-			}
+			}, false, nil
 		}
+
+		return domain.AccessDecision{
+			IP:                   ip,
+			Allowed:              false,
+			Decision:             "captcha_required",
+			Reason:               "captcha verification required",
+			VerificationRequired: true,
+			MatchedRuleID:        rule.Rule.ID,
+			MatchedValue:         rule.Rule.Value,
+		}, false, nil
 	}
 
-	for _, rule := range snapshot.GrayRules {
-		if rule.Matcher.Match(addr) {
-			return defaultDecision(ip, snapshot.DefaultPolicy, "matched graylist rule", rule.Rule.ID, rule.Rule.Value)
-		}
-	}
-
-	return defaultDecision(ip, snapshot.DefaultPolicy, "default policy", "", "")
+	return defaultDecision(ip, snapshot.DefaultPolicy, "default policy", "", ""), true, nil
 }
 
 func defaultDecision(ip string, policy domain.DefaultPolicy, reason, ruleID, ruleValue string) domain.AccessDecision {
@@ -186,14 +246,5 @@ func defaultDecision(ip string, policy domain.DefaultPolicy, reason, ruleID, rul
 		Reason:        reason,
 		MatchedRuleID: ruleID,
 		MatchedValue:  ruleValue,
-	}
-}
-
-func decisionLogFields(decision domain.AccessDecision) map[string]any {
-	return map[string]any{
-		"ip":        decision.IP,
-		"decision":  decision.Decision,
-		"reason":    decision.Reason,
-		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 }

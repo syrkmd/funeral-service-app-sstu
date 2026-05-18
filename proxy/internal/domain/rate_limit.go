@@ -10,24 +10,31 @@ const (
 )
 
 type RateLimitRule struct {
-	ID          string         `json:"id" yaml:"id"`
-	Scope       RateLimitScope `json:"scope" yaml:"scope"`
-	Value       string         `json:"value" yaml:"value"`
-	RPS         int            `json:"rps" yaml:"rps"`
-	RPM         int            `json:"rpm" yaml:"rpm"`
-	RPH         int            `json:"rph" yaml:"rph"`
-	RPD         int            `json:"rpd" yaml:"rpd"`
-	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
+	ID             string         `json:"id" yaml:"id"`
+	Scope          RateLimitScope `json:"scope" yaml:"scope"`
+	Value          string         `json:"value" yaml:"value"`
+	RPS            int            `json:"rps" yaml:"rps"`
+	RPM            int            `json:"rpm" yaml:"rpm"`
+	RPH            int            `json:"rph" yaml:"rph"`
+	RPD            int            `json:"rpd" yaml:"rpd"`
+	CPS            int            `json:"cps" yaml:"cps"`
+	MaxConnections int            `json:"max_connections" yaml:"max_connections"`
+	UploadBPS      int64          `json:"upload_bps" yaml:"upload_bps"`
+	DownloadBPS    int64          `json:"download_bps" yaml:"download_bps"`
+	TotalBytes     int64          `json:"total_bytes" yaml:"total_bytes"`
+	TotalWindow    time.Duration  `json:"-" yaml:"-"`
+	Description    string         `json:"description,omitempty" yaml:"description,omitempty"`
 }
 
 type RateLimitDecision struct {
-	IP           string `json:"ip"`
-	Allowed      bool   `json:"allowed"`
-	Reason       string `json:"reason"`
-	RuleID       string `json:"rule_id,omitempty"`
-	RuleValue    string `json:"rule_value,omitempty"`
-	LimitType    string `json:"type,omitempty"`
-	CurrentValue int    `json:"current_value,omitempty"`
+	IP             string   `json:"ip"`
+	Allowed        bool     `json:"allowed"`
+	Reason         string   `json:"reason"`
+	RuleID         string   `json:"rule_id,omitempty"`
+	RuleValue      string   `json:"rule_value,omitempty"`
+	LimitType      string   `json:"type,omitempty"`
+	CurrentValue   int      `json:"current_value,omitempty"`
+	ConnectionKeys []string `json:"-"`
 }
 
 type BucketState struct {

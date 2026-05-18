@@ -1,0 +1,249 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/pkg/ipmatch/trie.go:1:1
+package ipmatch
+
+import (
+	"fmt"
+	"net/netip"
+	"strings"
+)
+
+type candidate[T any] struct {
+	order int
+	value T
+}
+
+type trieNode[T any] struct {
+	zero      *trieNode[T]
+	one       *trieNode[T]
+	candidate *candidate[T]
+}
+
+type RuleSet[T any] struct {
+	v4 *trieNode[T]
+	v6 *trieNode[T]
+}
+
+func NewRuleSet[T any]() *RuleSet[T] {goCover_af7fd95183bf__7[0] = 1 ; goCover_af7fd95183bf__7[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__7[2] = 7 ; goCover_af7fd95183bf__7[3] = 1;
+	return &RuleSet[T]{
+		v4: &trieNode[T]{},
+		v6: &trieNode[T]{},
+	}
+}
+
+func (s *RuleSet[T]) InsertPrefixes(prefixes []netip.Prefix, order int, value T) {goCover_af7fd95183bf__8[0] = 13 ; goCover_af7fd95183bf__8[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__8[2] = 8 ; goCover_af7fd95183bf__8[3] = 1;
+	for _, prefix := range prefixes {goCover_af7fd95183bf__8[4] = 1;
+		addr := prefix.Addr().Unmap()
+		root := s.root(addr)
+		if root == nil {goCover_af7fd95183bf__8[7] = 1;
+			continue
+		}
+
+		goCover_af7fd95183bf__8[5] = 1;node := root
+		for bit := 0; bit < prefix.Bits(); bit++ {goCover_af7fd95183bf__8[8] = 1;
+			if bitAt(addr, bit) == 0 {goCover_af7fd95183bf__8[11] = 1;
+				if node.zero == nil {goCover_af7fd95183bf__8[13] = 1;
+					node.zero = &trieNode[T]{}
+				}
+				goCover_af7fd95183bf__8[12] = 1;node = node.zero
+				continue
+			}
+
+			goCover_af7fd95183bf__8[9] = 1;if node.one == nil {goCover_af7fd95183bf__8[14] = 1;
+				node.one = &trieNode[T]{}
+			}
+			goCover_af7fd95183bf__8[10] = 1;node = node.one
+		}
+
+		goCover_af7fd95183bf__8[6] = 1;if node.candidate == nil || order < node.candidate.order {goCover_af7fd95183bf__8[15] = 1;
+			node.candidate = &candidate[T]{
+				order: order,
+				value: value,
+			}
+		}
+	}
+}
+
+func (s *RuleSet[T]) Match(addr netip.Addr) (T, bool) {goCover_af7fd95183bf__9[0] = 15 ; goCover_af7fd95183bf__9[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__9[2] = 9 ; goCover_af7fd95183bf__9[3] = 1;
+	var zero T
+
+	addr = addr.Unmap()
+	root := s.root(addr)
+	if root == nil {goCover_af7fd95183bf__9[8] = 1;
+		return zero, false
+	}
+
+	goCover_af7fd95183bf__9[4] = 1;node := root
+	var best *candidate[T]
+	if node.candidate != nil {goCover_af7fd95183bf__9[9] = 1;
+		best = node.candidate
+	}
+
+	goCover_af7fd95183bf__9[5] = 1;for bit := 0; bit < addr.BitLen(); bit++ {goCover_af7fd95183bf__9[10] = 1;
+		if bitAt(addr, bit) == 0 {goCover_af7fd95183bf__9[13] = 1;
+			node = node.zero
+		} else{ goCover_af7fd95183bf__9[14] = 1;{
+			node = node.one
+		}}
+		goCover_af7fd95183bf__9[11] = 1;if node == nil {goCover_af7fd95183bf__9[15] = 1;
+			break
+		}
+		goCover_af7fd95183bf__9[12] = 1;if node.candidate != nil && (best == nil || node.candidate.order < best.order) {goCover_af7fd95183bf__9[16] = 1;
+			best = node.candidate
+		}
+	}
+
+	goCover_af7fd95183bf__9[6] = 1;if best == nil {goCover_af7fd95183bf__9[17] = 1;
+		return zero, false
+	}
+
+	goCover_af7fd95183bf__9[7] = 1;return best.value, true
+}
+
+func (s *RuleSet[T]) root(addr netip.Addr) *trieNode[T] {goCover_af7fd95183bf__10[0] = 4 ; goCover_af7fd95183bf__10[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__10[2] = 10 ; goCover_af7fd95183bf__10[3] = 1;
+	switch addr.BitLen() {
+	case 32:goCover_af7fd95183bf__10[4] = 1;
+		return s.v4
+	case 128:goCover_af7fd95183bf__10[5] = 1;
+		return s.v6
+	default:goCover_af7fd95183bf__10[6] = 1;
+		return nil
+	}
+}
+
+func Prefixes(value string) ([]netip.Prefix, error) {goCover_af7fd95183bf__11[0] = 17 ; goCover_af7fd95183bf__11[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__11[2] = 11 ; goCover_af7fd95183bf__11[3] = 1;
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {goCover_af7fd95183bf__11[8] = 1;
+		return nil, fmt.Errorf("empty matcher")
+	}
+
+	goCover_af7fd95183bf__11[4] = 1;if strings.Contains(trimmed, "/") {goCover_af7fd95183bf__11[9] = 1;
+		prefix, err := netip.ParsePrefix(trimmed)
+		if err != nil {goCover_af7fd95183bf__11[11] = 1;
+			return nil, fmt.Errorf("parse CIDR %q: %w", trimmed, err)
+		}
+		goCover_af7fd95183bf__11[10] = 1;return []netip.Prefix{prefix.Masked()}, nil
+	}
+
+	goCover_af7fd95183bf__11[5] = 1;if strings.Contains(trimmed, "-") {goCover_af7fd95183bf__11[12] = 1;
+		parts := strings.SplitN(trimmed, "-", 2)
+		if len(parts) != 2 {goCover_af7fd95183bf__11[16] = 1;
+			return nil, fmt.Errorf("invalid IP range %q", trimmed)
+		}
+
+		goCover_af7fd95183bf__11[13] = 1;from, err := netip.ParseAddr(strings.TrimSpace(parts[0]))
+		if err != nil {goCover_af7fd95183bf__11[17] = 1;
+			return nil, fmt.Errorf("parse range start %q: %w", parts[0], err)
+		}
+
+		goCover_af7fd95183bf__11[14] = 1;to, err := netip.ParseAddr(strings.TrimSpace(parts[1]))
+		if err != nil {goCover_af7fd95183bf__11[18] = 1;
+			return nil, fmt.Errorf("parse range end %q: %w", parts[1], err)
+		}
+
+		goCover_af7fd95183bf__11[15] = 1;return rangeToPrefixes(from.Unmap(), to.Unmap())
+	}
+
+	goCover_af7fd95183bf__11[6] = 1;addr, err := netip.ParseAddr(trimmed)
+	if err != nil {goCover_af7fd95183bf__11[19] = 1;
+		return nil, fmt.Errorf("parse IP %q: %w", trimmed, err)
+	}
+
+	goCover_af7fd95183bf__11[7] = 1;addr = addr.Unmap()
+	return []netip.Prefix{netip.PrefixFrom(addr, addr.BitLen())}, nil
+}
+
+func rangeToPrefixes(from netip.Addr, to netip.Addr) ([]netip.Prefix, error) {goCover_af7fd95183bf__12[0] = 9 ; goCover_af7fd95183bf__12[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__12[2] = 12 ; goCover_af7fd95183bf__12[3] = 1;
+	if from.BitLen() != to.BitLen() {goCover_af7fd95183bf__12[7] = 1;
+		return nil, fmt.Errorf("range endpoints must use the same address family")
+	}
+	goCover_af7fd95183bf__12[4] = 1;if from.Compare(to) > 0 {goCover_af7fd95183bf__12[8] = 1;
+		return nil, fmt.Errorf("range start must be <= range end")
+	}
+
+	goCover_af7fd95183bf__12[5] = 1;prefixes := make([]netip.Prefix, 0, 8)
+	current := from
+	for current.Compare(to) <= 0 {goCover_af7fd95183bf__12[9] = 1;
+		prefix := largestPrefixWithinRange(current, to)
+		prefixes = append(prefixes, prefix)
+		last := lastAddrOfPrefix(prefix)
+		if last.Compare(to) >= 0 {goCover_af7fd95183bf__12[11] = 1;
+			break
+		}
+		goCover_af7fd95183bf__12[10] = 1;current = nextAddr(last)
+	}
+
+	goCover_af7fd95183bf__12[6] = 1;return prefixes, nil
+}
+
+func largestPrefixWithinRange(start netip.Addr, end netip.Addr) netip.Prefix {goCover_af7fd95183bf__13[0] = 7 ; goCover_af7fd95183bf__13[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__13[2] = 13 ; goCover_af7fd95183bf__13[3] = 1;
+	bits := start.BitLen()
+	best := netip.PrefixFrom(start, bits)
+
+	for prefixBits := bits - 1; prefixBits >= 0; prefixBits-- {goCover_af7fd95183bf__13[5] = 1;
+		prefix := netip.PrefixFrom(start, prefixBits).Masked()
+		if prefix.Addr().Compare(start) != 0 {goCover_af7fd95183bf__13[8] = 1;
+			break
+		}
+		goCover_af7fd95183bf__13[6] = 1;if lastAddrOfPrefix(prefix).Compare(end) > 0 {goCover_af7fd95183bf__13[9] = 1;
+			continue
+		}
+		goCover_af7fd95183bf__13[7] = 1;best = prefix
+	}
+
+	goCover_af7fd95183bf__13[4] = 1;return best
+}
+
+func lastAddrOfPrefix(prefix netip.Prefix) netip.Addr {goCover_af7fd95183bf__14[0] = 3 ; goCover_af7fd95183bf__14[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__14[2] = 14 ; goCover_af7fd95183bf__14[3] = 1;
+	addr := prefix.Addr().Unmap()
+	bytes := addrBytes(addr)
+	bits := prefix.Bits()
+
+	for bit := bits; bit < addr.BitLen(); bit++ {goCover_af7fd95183bf__14[5] = 1;
+		byteIndex := bit / 8
+		bitIndex := 7 - (bit % 8)
+		bytes[byteIndex] |= 1 << bitIndex
+	}
+
+	goCover_af7fd95183bf__14[4] = 1;return bytesToAddr(addr.BitLen(), bytes)
+}
+
+func nextAddr(addr netip.Addr) netip.Addr {goCover_af7fd95183bf__15[0] = 4 ; goCover_af7fd95183bf__15[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__15[2] = 15 ; goCover_af7fd95183bf__15[3] = 1;
+	bytes := addrBytes(addr.Unmap())
+	for idx := len(bytes) - 1; idx >= 0; idx-- {goCover_af7fd95183bf__15[5] = 1;
+		bytes[idx]++
+		if bytes[idx] != 0 {goCover_af7fd95183bf__15[6] = 1;
+			break
+		}
+	}
+	goCover_af7fd95183bf__15[4] = 1;return bytesToAddr(addr.BitLen(), bytes)
+}
+
+func addrBytes(addr netip.Addr) []byte {goCover_af7fd95183bf__16[0] = 3 ; goCover_af7fd95183bf__16[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__16[2] = 16 ; goCover_af7fd95183bf__16[3] = 1;
+	if addr.BitLen() == 32 {goCover_af7fd95183bf__16[5] = 1;
+		value := addr.As4()
+		return append([]byte(nil), value[:]...)
+	}
+	goCover_af7fd95183bf__16[4] = 1;value := addr.As16()
+	return append([]byte(nil), value[:]...)
+}
+
+func bytesToAddr(bitLen int, bytes []byte) netip.Addr {goCover_af7fd95183bf__17[0] = 3 ; goCover_af7fd95183bf__17[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__17[2] = 17 ; goCover_af7fd95183bf__17[3] = 1;
+	if bitLen == 32 {goCover_af7fd95183bf__17[5] = 1;
+		var value [4]byte
+		copy(value[:], bytes)
+		return netip.AddrFrom4(value)
+	}
+	goCover_af7fd95183bf__17[4] = 1;var value [16]byte
+	copy(value[:], bytes)
+	return netip.AddrFrom16(value)
+}
+
+func bitAt(addr netip.Addr, bit int) int {goCover_af7fd95183bf__18[0] = 3 ; goCover_af7fd95183bf__18[1] = goCover_af7fd95183bf_P ; goCover_af7fd95183bf__18[2] = 18 ; goCover_af7fd95183bf__18[3] = 1;
+	bytes := addrBytes(addr.Unmap())
+	byteIndex := bit / 8
+	bitIndex := 7 - (bit % 8)
+	if bytes[byteIndex]&(1<<bitIndex) == 0 {goCover_af7fd95183bf__18[5] = 1;
+		return 0
+	}
+	goCover_af7fd95183bf__18[4] = 1;return 1
+}

@@ -1,0 +1,101 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/config/manager.go:1:1
+package config
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+
+	"github.com/fsnotify/fsnotify"
+)
+
+type Subscriber func(cfg Config)
+
+type Manager struct {
+	path        string
+	configValue atomic.Value
+
+	mu          sync.RWMutex
+	subscribers []Subscriber
+}
+
+func NewManager(path string) (*Manager, error) {goCover_58999f8e6c2b__8[0] = 3 ; goCover_58999f8e6c2b__8[1] = goCover_58999f8e6c2b_P ; goCover_58999f8e6c2b__8[2] = 8 ; goCover_58999f8e6c2b__8[3] = 1;
+	cfg, err := Load(path)
+	if err != nil {goCover_58999f8e6c2b__8[5] = 1;
+		return nil, err
+	}
+
+	goCover_58999f8e6c2b__8[4] = 1;manager := &Manager{path: path}
+	manager.configValue.Store(cfg)
+	return manager, nil
+}
+
+func (m *Manager) Current() Config {goCover_58999f8e6c2b__9[0] = 1 ; goCover_58999f8e6c2b__9[1] = goCover_58999f8e6c2b_P ; goCover_58999f8e6c2b__9[2] = 9 ; goCover_58999f8e6c2b__9[3] = 1;
+	return m.configValue.Load().(Config)
+}
+
+func (m *Manager) Subscribe(fn Subscriber) {goCover_58999f8e6c2b__10[0] = 1 ; goCover_58999f8e6c2b__10[1] = goCover_58999f8e6c2b_P ; goCover_58999f8e6c2b__10[2] = 10 ; goCover_58999f8e6c2b__10[3] = 1;
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subscribers = append(m.subscribers, fn)
+}
+
+func (m *Manager) Start(ctx context.Context) error {goCover_58999f8e6c2b__11[0] = 17 ; goCover_58999f8e6c2b__11[1] = goCover_58999f8e6c2b_P ; goCover_58999f8e6c2b__11[2] = 11 ; goCover_58999f8e6c2b__11[3] = 1;
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {goCover_58999f8e6c2b__11[7] = 1;
+		return fmt.Errorf("create watcher: %w", err)
+	}
+	goCover_58999f8e6c2b__11[4] = 1;defer func(watcher *fsnotify.Watcher) {goCover_58999f8e6c2b__11[8] = 1;
+		_ = watcher.Close()
+	}(watcher)
+
+	goCover_58999f8e6c2b__11[5] = 1;dir := filepath.Dir(m.path)
+	filename := filepath.Base(m.path)
+	if err := watcher.Add(dir); err != nil {goCover_58999f8e6c2b__11[9] = 1;
+		return fmt.Errorf("watch config dir: %w", err)
+	}
+
+	goCover_58999f8e6c2b__11[6] = 1;for {goCover_58999f8e6c2b__11[10] = 1;
+		select {
+		case <-ctx.Done():goCover_58999f8e6c2b__11[11] = 1;
+			return ctx.Err()
+		case err := <-watcher.Errors:goCover_58999f8e6c2b__11[12] = 1;
+			if err != nil {goCover_58999f8e6c2b__11[16] = 1;
+				return fmt.Errorf("watch config: %w", err)
+			}
+		case event := <-watcher.Events:goCover_58999f8e6c2b__11[13] = 1;
+			if filepath.Base(event.Name) != filename {goCover_58999f8e6c2b__11[17] = 1;
+				continue
+			}
+
+			goCover_58999f8e6c2b__11[14] = 1;if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {goCover_58999f8e6c2b__11[18] = 1;
+				continue
+			}
+
+			goCover_58999f8e6c2b__11[15] = 1;if err := m.reload(); err != nil {goCover_58999f8e6c2b__11[19] = 1;
+				continue
+			}
+		}
+	}
+}
+
+func (m *Manager) reload() error {goCover_58999f8e6c2b__12[0] = 5 ; goCover_58999f8e6c2b__12[1] = goCover_58999f8e6c2b_P ; goCover_58999f8e6c2b__12[2] = 12 ; goCover_58999f8e6c2b__12[3] = 1;
+	cfg, err := Load(m.path)
+	if err != nil {goCover_58999f8e6c2b__12[6] = 1;
+		return err
+	}
+
+	goCover_58999f8e6c2b__12[4] = 1;m.configValue.Store(cfg)
+
+	m.mu.RLock()
+	subscribers := append([]Subscriber(nil), m.subscribers...)
+	m.mu.RUnlock()
+
+	for _, subscriber := range subscribers {goCover_58999f8e6c2b__12[7] = 1;
+		subscriber(cfg)
+	}
+
+	goCover_58999f8e6c2b__12[5] = 1;return nil
+}

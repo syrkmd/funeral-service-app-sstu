@@ -15,6 +15,387 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/cache/all": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Clear all cache entries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/expired": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate expired cache entries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/key/{key}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate cache by exact key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/prefix": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate cache by key prefix",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache key prefix",
+                        "name": "value",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/regex": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate cache by regex",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Go regexp pattern",
+                        "name": "pattern",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/tags/{tag}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate cache by tag",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache tag",
+                        "name": "tag",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.deleteCountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/captcha/verify": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "captcha"
+                ],
+                "summary": "Verify graylist captcha",
+                "parameters": [
+                    {
+                        "description": "Captcha payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.verifyCaptchaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/clients": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get dashboard client stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.DashboardClients"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/ip_access": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get IP access dashboard data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.DashboardIPAccess"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/overview": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get dashboard overview",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.DashboardOverview"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/rate_limits": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get rate limit dashboard data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.DashboardRateLimits"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/upstream": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Get upstream status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.DashboardUpstream"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/ip_access/check": {
             "get": {
                 "produces": [
@@ -150,6 +531,31 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/metrics": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "monitoring"
+                ],
+                "summary": "Get service metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.MetricsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gintransport.errorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -173,6 +579,191 @@ const docTemplate = `{
                 },
                 "reason": {
                     "type": "string"
+                },
+                "verification_required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "domain.BlockedClient": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ClientSnapshot": {
+            "type": "object",
+            "properties": {
+                "blocked_requests": {
+                    "type": "integer"
+                },
+                "bytes_in": {
+                    "type": "integer"
+                },
+                "bytes_out": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "rate_limited_requests": {
+                    "type": "integer"
+                },
+                "requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.DashboardClients": {
+            "type": "object",
+            "properties": {
+                "blocked_clients": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ClientSnapshot"
+                    }
+                },
+                "rate_limited_clients": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ClientSnapshot"
+                    }
+                },
+                "top_clients_by_requests": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ClientSnapshot"
+                    }
+                },
+                "top_clients_by_traffic": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ClientSnapshot"
+                    }
+                }
+            }
+        },
+        "domain.DashboardIPAccess": {
+            "type": "object",
+            "properties": {
+                "allowlist": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.IPRule"
+                    }
+                },
+                "deny_statistics": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "denylist": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.IPRule"
+                    }
+                },
+                "graylist": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.IPRule"
+                    }
+                },
+                "matched_rules_statistics": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
+        "domain.DashboardOverview": {
+            "type": "object",
+            "properties": {
+                "active_connections": {
+                    "type": "integer"
+                },
+                "average_latency_ms": {
+                    "type": "number"
+                },
+                "blocked_requests": {
+                    "type": "integer"
+                },
+                "current_rps": {
+                    "type": "number"
+                },
+                "total_requests": {
+                    "type": "integer"
+                },
+                "upstream_status": {
+                    "type": "string"
+                },
+                "uptime": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DashboardRateLimits": {
+            "type": "object",
+            "properties": {
+                "active_rate_limit_rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RateLimitRule"
+                    }
+                },
+                "blocked_ips": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.BlockedClient"
+                    }
+                },
+                "current_bucket_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RateLimitBucketSnapshot"
+                    }
+                },
+                "violations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
+        "domain.DashboardUpstream": {
+            "type": "object",
+            "properties": {
+                "last_updated_at": {
+                    "type": "string"
+                },
+                "last_upstream_error": {
+                    "type": "string"
+                },
+                "last_upstream_status": {
+                    "type": "integer"
+                },
+                "total_upstream_requests": {
+                    "type": "integer"
+                },
+                "upstream_errors": {
+                    "type": "integer"
+                },
+                "upstream_health": {
+                    "type": "boolean"
+                },
+                "upstream_latency_ms": {
+                    "type": "number"
                 }
             }
         },
@@ -206,6 +797,159 @@ const docTemplate = `{
                 "ListTypeGray"
             ]
         },
+        "domain.MetricsResponse": {
+            "type": "object",
+            "properties": {
+                "active_connections": {
+                    "type": "integer"
+                },
+                "active_requests": {
+                    "type": "integer"
+                },
+                "average_latency_ms": {
+                    "type": "number"
+                },
+                "bytes_in": {
+                    "type": "integer"
+                },
+                "bytes_out": {
+                    "type": "integer"
+                },
+                "cache_hits": {
+                    "type": "integer"
+                },
+                "cache_invalidations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "cache_misses": {
+                    "type": "integer"
+                },
+                "cache_stores": {
+                    "type": "integer"
+                },
+                "requests_by_method": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "requests_by_path": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "requests_by_status": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "requests_per_second": {
+                    "type": "number"
+                },
+                "total_blocked_requests": {
+                    "type": "integer"
+                },
+                "total_rate_limited_requests": {
+                    "type": "integer"
+                },
+                "total_requests": {
+                    "type": "integer"
+                },
+                "total_upstream_errors": {
+                    "type": "integer"
+                },
+                "uptime": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.RateLimitBucketSnapshot": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "last_refill": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "tokens_remaining": {
+                    "type": "number"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.RateLimitRule": {
+            "type": "object",
+            "properties": {
+                "cps": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "download_bps": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_connections": {
+                    "type": "integer"
+                },
+                "rpd": {
+                    "type": "integer"
+                },
+                "rph": {
+                    "type": "integer"
+                },
+                "rpm": {
+                    "type": "integer"
+                },
+                "rps": {
+                    "type": "integer"
+                },
+                "scope": {
+                    "$ref": "#/definitions/domain.RateLimitScope"
+                },
+                "total_bytes": {
+                    "type": "integer"
+                },
+                "upload_bps": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.RateLimitScope": {
+            "type": "string",
+            "enum": [
+                "ip",
+                "subnet"
+            ],
+            "x-enum-varnames": [
+                "RateLimitScopeIP",
+                "RateLimitScopeSubnet"
+            ]
+        },
         "gintransport.CreateRuleRequest": {
             "type": "object",
             "required": [
@@ -227,10 +971,29 @@ const docTemplate = `{
                 }
             }
         },
+        "gintransport.deleteCountResponse": {
+            "type": "object",
+            "properties": {
+                "deleted_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "gintransport.errorResponse": {
             "type": "object",
             "properties": {
                 "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "gintransport.verifyCaptchaRequest": {
+            "type": "object",
+            "required": [
+                "answer"
+            ],
+            "properties": {
+                "answer": {
                     "type": "string"
                 }
             }
@@ -245,7 +1008,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Proxy Service API",
-	Description:      "Production-ready HTTP proxy service with IP access control.",
+	Description:      "HTTP proxy service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

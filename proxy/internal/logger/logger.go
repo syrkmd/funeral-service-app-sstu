@@ -16,3 +16,19 @@ func New(level string) (zerolog.Logger, error) {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger().Level(parsedLevel)
 	return logger, nil
 }
+
+type UseCaseAdapter struct {
+	logger *zerolog.Logger
+}
+
+func NewUseCaseAdapter(logger *zerolog.Logger) *UseCaseAdapter {
+	return &UseCaseAdapter{logger: logger}
+}
+
+func (a *UseCaseAdapter) Error(msg string, err error) {
+	if a == nil || a.logger == nil {
+		return
+	}
+
+	a.logger.Error().Err(err).Msg(msg)
+}

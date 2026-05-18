@@ -1,0 +1,30 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/usecase/proxy.go:1:1
+package usecase
+
+import (
+	"context"
+	"net/url"
+
+	"proxy/internal/domain"
+)
+
+type ProxyUseCase struct {
+	config ConfigProvider
+}
+
+func NewProxyUseCase(config ConfigProvider) *ProxyUseCase {goCover_fc8b709538af__68[0] = 1 ; goCover_fc8b709538af__68[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__68[2] = 68 ; goCover_fc8b709538af__68[3] = 1;
+	return &ProxyUseCase{config: config}
+}
+
+func (u *ProxyUseCase) ResolveUpstream(_ context.Context) (*url.URL, error) {goCover_fc8b709538af__69[0] = 3 ; goCover_fc8b709538af__69[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__69[2] = 69 ; goCover_fc8b709538af__69[3] = 1;
+	upstreamURL, err := url.Parse(u.config.Current().Proxy.UpstreamURL)
+	if err != nil || upstreamURL.Scheme == "" || upstreamURL.Host == "" {goCover_fc8b709538af__69[5] = 1;
+		return nil, domain.ErrInvalidUpstream
+	}
+
+	goCover_fc8b709538af__69[4] = 1;return upstreamURL, nil
+}
+
+func (u *ProxyUseCase) FlushInterval() int64 {goCover_fc8b709538af__70[0] = 1 ; goCover_fc8b709538af__70[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__70[2] = 70 ; goCover_fc8b709538af__70[3] = 1;
+	return int64(u.config.Current().Proxy.FlushInterval.Duration)
+}

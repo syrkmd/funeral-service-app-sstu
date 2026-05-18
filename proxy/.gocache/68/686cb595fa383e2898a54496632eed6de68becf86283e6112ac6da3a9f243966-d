@@ -1,0 +1,462 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/usecase/rate_limit.go:1:1
+package usecase
+
+import (
+	"context"
+	"fmt"
+	"hash/fnv"
+	"math"
+	"net/netip"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"proxy/internal/config"
+	"proxy/internal/domain"
+	"proxy/pkg/ipmatch"
+)
+
+type RateLimitUseCase struct {
+	repo          RateLimitStateRepository
+	config        ConfigProvider
+	logger        UseCaseLogger
+	now           func() time.Time
+	compiledRules atomic.Value
+	keyLocks      [256]sync.Mutex
+}
+
+func NewRateLimitUseCase(repo RateLimitStateRepository, provider ConfigProvider, logger UseCaseLogger) *RateLimitUseCase {goCover_fc8b709538af__71[0] = 3 ; goCover_fc8b709538af__71[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__71[2] = 71 ; goCover_fc8b709538af__71[3] = 1;
+	useCase := &RateLimitUseCase{
+		repo:   repo,
+		config: provider,
+		logger: logger,
+		now:    time.Now,
+	}
+
+	useCase.compiledRules.Store(compiledRateLimitConfig{})
+	useCase.applyConfig(provider.Current())
+
+	provider.Subscribe(func(cfg config.Config) {goCover_fc8b709538af__71[5] = 1;
+		useCase.applyConfig(cfg)
+	})
+
+	goCover_fc8b709538af__71[4] = 1;return useCase
+}
+
+func (u *RateLimitUseCase) CheckRateLimit(ctx context.Context, rawIP string, uploadBytes int64) (domain.RateLimitDecision, error) {goCover_fc8b709538af__72[0] = 12 ; goCover_fc8b709538af__72[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__72[2] = 72 ; goCover_fc8b709538af__72[3] = 1;
+	ip := strings.TrimSpace(rawIP)
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+
+	if !compiled.Enabled {goCover_fc8b709538af__72[7] = 1;
+		return domain.RateLimitDecision{
+			IP:      ip,
+			Allowed: true,
+			Reason:  "rate_limit_disabled",
+		}, nil
+	}
+
+	goCover_fc8b709538af__72[4] = 1;addr, err := netip.ParseAddr(ip)
+	if err != nil {goCover_fc8b709538af__72[8] = 1;
+		return domain.RateLimitDecision{}, fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+	goCover_fc8b709538af__72[5] = 1;addr = addr.Unmap()
+
+	rules := u.resolveRules(addr, compiled)
+	acquiredConnectionKeys := make([]string, 0, len(rules))
+
+	for _, rule := range rules {goCover_fc8b709538af__72[9] = 1;
+		allowed, limitType, currentValue, acquiredKey, err := u.consume(ctx, rule, normalizeTrafficBytes(uploadBytes), 0)
+		if err != nil {goCover_fc8b709538af__72[12] = 1;
+			_ = u.ReleaseConnections(ctx, acquiredConnectionKeys)
+			return domain.RateLimitDecision{}, err
+		}
+		goCover_fc8b709538af__72[10] = 1;if acquiredKey != "" {goCover_fc8b709538af__72[13] = 1;
+			acquiredConnectionKeys = append(acquiredConnectionKeys, acquiredKey)
+		}
+		goCover_fc8b709538af__72[11] = 1;if !allowed {goCover_fc8b709538af__72[14] = 1;
+			_ = u.ReleaseConnections(ctx, acquiredConnectionKeys)
+			return domain.RateLimitDecision{
+				IP:             ip,
+				Allowed:        false,
+				Reason:         "rate_limit",
+				RuleID:         rule.ID,
+				RuleValue:      rule.Value,
+				LimitType:      limitType,
+				CurrentValue:   currentValue,
+				ConnectionKeys: nil,
+			}, nil
+		}
+	}
+
+	goCover_fc8b709538af__72[6] = 1;return domain.RateLimitDecision{
+		IP:             ip,
+		Allowed:        true,
+		Reason:         "rate_limit_ok",
+		ConnectionKeys: acquiredConnectionKeys,
+	}, nil
+}
+
+func (u *RateLimitUseCase) ReserveResponseBandwidth(ctx context.Context, rawIP string, downloadBytes int64) (domain.RateLimitDecision, error) {goCover_fc8b709538af__73[0] = 10 ; goCover_fc8b709538af__73[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__73[2] = 73 ; goCover_fc8b709538af__73[3] = 1;
+	ip := strings.TrimSpace(rawIP)
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+
+	if !compiled.Enabled {goCover_fc8b709538af__73[7] = 1;
+		return domain.RateLimitDecision{
+			IP:      ip,
+			Allowed: true,
+			Reason:  "rate_limit_disabled",
+		}, nil
+	}
+
+	goCover_fc8b709538af__73[4] = 1;addr, err := netip.ParseAddr(ip)
+	if err != nil {goCover_fc8b709538af__73[8] = 1;
+		return domain.RateLimitDecision{}, fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+	goCover_fc8b709538af__73[5] = 1;addr = addr.Unmap()
+
+	rules := u.resolveRules(addr, compiled)
+	for _, rule := range rules {goCover_fc8b709538af__73[9] = 1;
+		allowed, limitType, currentValue, err := u.consumeTraffic(ctx, rule, 0, normalizeTrafficBytes(downloadBytes))
+		if err != nil {goCover_fc8b709538af__73[11] = 1;
+			return domain.RateLimitDecision{}, err
+		}
+		goCover_fc8b709538af__73[10] = 1;if !allowed {goCover_fc8b709538af__73[12] = 1;
+			return domain.RateLimitDecision{
+				IP:           ip,
+				Allowed:      false,
+				Reason:       "rate_limit",
+				RuleID:       rule.ID,
+				RuleValue:    rule.Value,
+				LimitType:    limitType,
+				CurrentValue: currentValue,
+			}, nil
+		}
+	}
+
+	goCover_fc8b709538af__73[6] = 1;return domain.RateLimitDecision{
+		IP:      ip,
+		Allowed: true,
+		Reason:  "rate_limit_ok",
+	}, nil
+}
+
+func (u *RateLimitUseCase) AccountTraffic(ctx context.Context, rawIP string, uploadBytes int64, downloadBytes int64) error {goCover_fc8b709538af__74[0] = 10 ; goCover_fc8b709538af__74[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__74[2] = 74 ; goCover_fc8b709538af__74[3] = 1;
+	uploadBytes = normalizeTrafficBytes(uploadBytes)
+	downloadBytes = normalizeTrafficBytes(downloadBytes)
+	if uploadBytes == 0 && downloadBytes == 0 {goCover_fc8b709538af__74[8] = 1;
+		return nil
+	}
+
+	goCover_fc8b709538af__74[4] = 1;ip := strings.TrimSpace(rawIP)
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+	if !compiled.Enabled {goCover_fc8b709538af__74[9] = 1;
+		return nil
+	}
+
+	goCover_fc8b709538af__74[5] = 1;addr, err := netip.ParseAddr(ip)
+	if err != nil {goCover_fc8b709538af__74[10] = 1;
+		return fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+	goCover_fc8b709538af__74[6] = 1;addr = addr.Unmap()
+
+	rules := u.resolveRules(addr, compiled)
+	for _, rule := range rules {goCover_fc8b709538af__74[11] = 1;
+		if _, _, _, err := u.consumeTraffic(ctx, rule, uploadBytes, downloadBytes); err != nil {goCover_fc8b709538af__74[12] = 1;
+			return err
+		}
+	}
+
+	goCover_fc8b709538af__74[7] = 1;return nil
+}
+
+func (u *RateLimitUseCase) ListRules(_ context.Context) ([]domain.RateLimitRule, error) {goCover_fc8b709538af__75[0] = 5 ; goCover_fc8b709538af__75[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__75[2] = 75 ; goCover_fc8b709538af__75[3] = 1;
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+	rules := make([]domain.RateLimitRule, 0, 1+len(compiled.Subnets))
+
+	if hasLimits(compiled.DefaultRule) {goCover_fc8b709538af__75[6] = 1;
+		rules = append(rules, compiled.DefaultRule)
+	}
+	goCover_fc8b709538af__75[4] = 1;for _, subnetRule := range compiled.Subnets {goCover_fc8b709538af__75[7] = 1;
+		rules = append(rules, subnetRule.Rule)
+	}
+
+	goCover_fc8b709538af__75[5] = 1;return rules, nil
+}
+
+func (u *RateLimitUseCase) ListBuckets(ctx context.Context) ([]domain.RateLimitBucketSnapshot, error) {goCover_fc8b709538af__76[0] = 1 ; goCover_fc8b709538af__76[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__76[2] = 76 ; goCover_fc8b709538af__76[3] = 1;
+	return u.repo.SnapshotBuckets(ctx)
+}
+
+func (u *RateLimitUseCase) resolveRules(addr netip.Addr, compiled compiledRateLimitConfig) []domain.RateLimitRule {goCover_fc8b709538af__77[0] = 7 ; goCover_fc8b709538af__77[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__77[2] = 77 ; goCover_fc8b709538af__77[3] = 1;
+	rules := make([]domain.RateLimitRule, 0, 1+len(compiled.Subnets))
+
+	if hasLimits(compiled.DefaultRule) {goCover_fc8b709538af__77[6] = 1;
+		ipRule := compiled.DefaultRule
+		ipRule.Value = addr.String()
+		rules = append(rules, ipRule)
+	}
+
+	goCover_fc8b709538af__77[4] = 1;for _, subnetRule := range compiled.Subnets {goCover_fc8b709538af__77[7] = 1;
+		if !subnetRule.Matcher.Match(addr) {goCover_fc8b709538af__77[9] = 1;
+			continue
+		}
+		goCover_fc8b709538af__77[8] = 1;rules = append(rules, subnetRule.Rule)
+	}
+
+	goCover_fc8b709538af__77[5] = 1;return rules
+}
+
+func (u *RateLimitUseCase) consume(ctx context.Context, rule domain.RateLimitRule, uploadBytes int64, downloadBytes int64) (bool, string, int, string, error) {goCover_fc8b709538af__78[0] = 32 ; goCover_fc8b709538af__78[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__78[2] = 78 ; goCover_fc8b709538af__78[3] = 1;
+	if rule.CPS > 0 {goCover_fc8b709538af__78[11] = 1;
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "cps"), float64(rule.CPS), float64(rule.CPS), time.Second)
+		if err != nil || !allowed {goCover_fc8b709538af__78[12] = 1;
+			return allowed, "cps", currentValue, "", err
+		}
+	}
+
+	goCover_fc8b709538af__78[4] = 1;var acquiredKey string
+	if rule.MaxConnections > 0 {goCover_fc8b709538af__78[13] = 1;
+		key := bucketKey(rule, "connections")
+		allowed, currentValue, err := u.repo.TryAcquireConnection(ctx, key, rule.MaxConnections)
+		if err != nil || !allowed {goCover_fc8b709538af__78[15] = 1;
+			return allowed, "connections", currentValue, "", err
+		}
+		goCover_fc8b709538af__78[14] = 1;acquiredKey = key
+	}
+
+	goCover_fc8b709538af__78[5] = 1;if rule.RPS > 0 {goCover_fc8b709538af__78[16] = 1;
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rps"), float64(rule.RPS), float64(rule.RPS), time.Second)
+		if err != nil || !allowed {goCover_fc8b709538af__78[17] = 1;
+			if acquiredKey != "" {goCover_fc8b709538af__78[19] = 1;
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			goCover_fc8b709538af__78[18] = 1;return allowed, "rps", currentValue, "", err
+		}
+	}
+
+	goCover_fc8b709538af__78[6] = 1;if rule.RPM > 0 {goCover_fc8b709538af__78[20] = 1;
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rpm"), float64(rule.RPM), float64(rule.RPM), time.Minute)
+		if err != nil || !allowed {goCover_fc8b709538af__78[21] = 1;
+			if acquiredKey != "" {goCover_fc8b709538af__78[23] = 1;
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			goCover_fc8b709538af__78[22] = 1;return allowed, "rpm", currentValue, "", err
+		}
+	}
+
+	goCover_fc8b709538af__78[7] = 1;if rule.RPH > 0 {goCover_fc8b709538af__78[24] = 1;
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rph"), float64(rule.RPH), float64(rule.RPH), time.Hour)
+		if err != nil || !allowed {goCover_fc8b709538af__78[25] = 1;
+			if acquiredKey != "" {goCover_fc8b709538af__78[27] = 1;
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			goCover_fc8b709538af__78[26] = 1;return allowed, "rph", currentValue, "", err
+		}
+	}
+
+	goCover_fc8b709538af__78[8] = 1;if rule.RPD > 0 {goCover_fc8b709538af__78[28] = 1;
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rpd"), float64(rule.RPD), float64(rule.RPD), 24*time.Hour)
+		if err != nil || !allowed {goCover_fc8b709538af__78[29] = 1;
+			if acquiredKey != "" {goCover_fc8b709538af__78[31] = 1;
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			goCover_fc8b709538af__78[30] = 1;return allowed, "rpd", currentValue, "", err
+		}
+	}
+
+	goCover_fc8b709538af__78[9] = 1;allowed, limitType, currentValue, err := u.consumeTraffic(ctx, rule, uploadBytes, downloadBytes)
+	if err != nil || !allowed {goCover_fc8b709538af__78[32] = 1;
+		if acquiredKey != "" {goCover_fc8b709538af__78[34] = 1;
+			_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+		}
+		goCover_fc8b709538af__78[33] = 1;return allowed, limitType, currentValue, "", err
+	}
+
+	goCover_fc8b709538af__78[10] = 1;return true, "", 0, acquiredKey, nil
+}
+
+func (u *RateLimitUseCase) consumeTraffic(ctx context.Context, rule domain.RateLimitRule, uploadBytes int64, downloadBytes int64) (bool, string, int, error) {goCover_fc8b709538af__79[0] = 10 ; goCover_fc8b709538af__79[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__79[2] = 79 ; goCover_fc8b709538af__79[3] = 1;
+	if uploadBytes > 0 && rule.UploadBPS > 0 {goCover_fc8b709538af__79[7] = 1;
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "upload"), float64(rule.UploadBPS), float64(rule.UploadBPS), time.Second, float64(uploadBytes))
+		if err != nil || !allowed {goCover_fc8b709538af__79[8] = 1;
+			return allowed, "upload", currentValue, err
+		}
+	}
+
+	goCover_fc8b709538af__79[4] = 1;if downloadBytes > 0 && rule.DownloadBPS > 0 {goCover_fc8b709538af__79[9] = 1;
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "download"), float64(rule.DownloadBPS), float64(rule.DownloadBPS), time.Second, float64(downloadBytes))
+		if err != nil || !allowed {goCover_fc8b709538af__79[10] = 1;
+			return allowed, "download", currentValue, err
+		}
+	}
+
+	goCover_fc8b709538af__79[5] = 1;totalBytes := uploadBytes + downloadBytes
+	if totalBytes > 0 && rule.TotalBytes > 0 && rule.TotalWindow > 0 {goCover_fc8b709538af__79[11] = 1;
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "total"), float64(rule.TotalBytes), float64(rule.TotalBytes), rule.TotalWindow, float64(totalBytes))
+		if err != nil || !allowed {goCover_fc8b709538af__79[12] = 1;
+			return allowed, "total", currentValue, err
+		}
+	}
+
+	goCover_fc8b709538af__79[6] = 1;return true, "", 0, nil
+}
+
+func (u *RateLimitUseCase) take(ctx context.Context, key string, capacity float64, refillTokens float64, period time.Duration) (bool, int, error) {goCover_fc8b709538af__80[0] = 1 ; goCover_fc8b709538af__80[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__80[2] = 80 ; goCover_fc8b709538af__80[3] = 1;
+	return u.takeAmount(ctx, key, capacity, refillTokens, period, 1)
+}
+
+func (u *RateLimitUseCase) takeAmount(ctx context.Context, key string, capacity float64, refillTokens float64, period time.Duration, amount float64) (bool, int, error) {goCover_fc8b709538af__81[0] = 15 ; goCover_fc8b709538af__81[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__81[2] = 81 ; goCover_fc8b709538af__81[3] = 1;
+	if amount <= 0 {goCover_fc8b709538af__81[10] = 1;
+		return true, 0, nil
+	}
+
+	goCover_fc8b709538af__81[4] = 1;lock := &u.keyLocks[lockIndex(key)]
+	lock.Lock()
+	defer lock.Unlock()
+
+	now := u.now().UTC()
+	state, exists, err := u.repo.GetBucket(ctx, key)
+	if err != nil {goCover_fc8b709538af__81[11] = 1;
+		return false, 0, err
+	}
+
+	goCover_fc8b709538af__81[5] = 1;if !exists {goCover_fc8b709538af__81[12] = 1;
+		state = domain.BucketState{
+			Tokens:     capacity,
+			LastRefill: now,
+		}
+	}
+
+	goCover_fc8b709538af__81[6] = 1;elapsed := now.Sub(state.LastRefill)
+	if elapsed > 0 {goCover_fc8b709538af__81[13] = 1;
+		state.Tokens = math.Min(capacity, state.Tokens+(elapsed.Seconds()/period.Seconds())*refillTokens)
+		state.LastRefill = now
+	}
+
+	goCover_fc8b709538af__81[7] = 1;if state.Tokens < amount {goCover_fc8b709538af__81[14] = 1;
+		if err := u.repo.SaveBucket(ctx, key, state); err != nil {goCover_fc8b709538af__81[16] = 1;
+			return false, 0, err
+		}
+		goCover_fc8b709538af__81[15] = 1;return false, usedTokens(capacity, state.Tokens), nil
+	}
+
+	goCover_fc8b709538af__81[8] = 1;state.Tokens -= amount
+	state.LastRefill = now
+
+	if err := u.repo.SaveBucket(ctx, key, state); err != nil {goCover_fc8b709538af__81[17] = 1;
+		return false, 0, err
+	}
+
+	goCover_fc8b709538af__81[9] = 1;return true, usedTokens(capacity, state.Tokens), nil
+}
+
+func (u *RateLimitUseCase) ReleaseConnections(ctx context.Context, keys []string) error {goCover_fc8b709538af__82[0] = 6 ; goCover_fc8b709538af__82[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__82[2] = 82 ; goCover_fc8b709538af__82[3] = 1;
+	for _, key := range keys {goCover_fc8b709538af__82[5] = 1;
+		if key == "" {goCover_fc8b709538af__82[7] = 1;
+			continue
+		}
+		goCover_fc8b709538af__82[6] = 1;if err := u.repo.ReleaseConnection(ctx, key); err != nil {goCover_fc8b709538af__82[8] = 1;
+			return err
+		}
+	}
+	goCover_fc8b709538af__82[4] = 1;return nil
+}
+
+func bucketKey(rule domain.RateLimitRule, dimension string) string {goCover_fc8b709538af__83[0] = 1 ; goCover_fc8b709538af__83[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__83[2] = 83 ; goCover_fc8b709538af__83[3] = 1;
+	return fmt.Sprintf("%s:%s:%s", rule.Scope, dimension, rule.Value)
+}
+
+type compiledSubnetRule struct {
+	Rule    domain.RateLimitRule
+	Matcher domain.IPMatcher
+}
+
+type compiledRateLimitConfig struct {
+	Enabled     bool
+	DefaultRule domain.RateLimitRule
+	Subnets     []compiledSubnetRule
+}
+
+func (u *RateLimitUseCase) applyConfig(cfg config.Config) {goCover_fc8b709538af__84[0] = 9 ; goCover_fc8b709538af__84[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__84[2] = 84 ; goCover_fc8b709538af__84[3] = 1;
+	compiled := compiledRateLimitConfig{
+		Enabled: cfg.RateLimit.Enabled,
+		DefaultRule: domain.RateLimitRule{
+			ID:             "default-ip",
+			Scope:          domain.RateLimitScopeIP,
+			RPS:            cfg.RateLimit.RPS,
+			RPM:            cfg.RateLimit.RPM,
+			RPH:            cfg.RateLimit.RPH,
+			RPD:            cfg.RateLimit.RPD,
+			CPS:            cfg.RateLimit.CPS,
+			MaxConnections: cfg.RateLimit.MaxConnections,
+			UploadBPS:      cfg.RateLimit.UploadBPS,
+			DownloadBPS:    cfg.RateLimit.DownloadBPS,
+			TotalBytes:     cfg.RateLimit.TotalBytes,
+			TotalWindow:    cfg.RateLimit.TotalWindow.Duration,
+		},
+		Subnets: make([]compiledSubnetRule, 0, len(cfg.RateLimit.Subnets)),
+	}
+
+	for idx, subnet := range cfg.RateLimit.Subnets {goCover_fc8b709538af__84[5] = 1;
+		matcher, err := ipmatch.Parse(subnet.CIDR)
+		if err != nil {goCover_fc8b709538af__84[8] = 1;
+			if u.logger != nil {goCover_fc8b709538af__84[10] = 1;
+				u.logger.Error("invalid subnet in rate limit config", err)
+			}
+			goCover_fc8b709538af__84[9] = 1;continue
+		}
+
+		goCover_fc8b709538af__84[6] = 1;ruleID := strings.TrimSpace(subnet.ID)
+		if ruleID == "" {goCover_fc8b709538af__84[11] = 1;
+			ruleID = fmt.Sprintf("subnet-%d", idx+1)
+		}
+
+		goCover_fc8b709538af__84[7] = 1;compiled.Subnets = append(compiled.Subnets, compiledSubnetRule{
+			Rule: domain.RateLimitRule{
+				ID:             ruleID,
+				Scope:          domain.RateLimitScopeSubnet,
+				Value:          subnet.CIDR,
+				RPS:            subnet.RPS,
+				RPM:            subnet.RPM,
+				RPH:            subnet.RPH,
+				RPD:            subnet.RPD,
+				CPS:            subnet.CPS,
+				MaxConnections: subnet.MaxConnections,
+				UploadBPS:      subnet.UploadBPS,
+				DownloadBPS:    subnet.DownloadBPS,
+				TotalBytes:     subnet.TotalBytes,
+				TotalWindow:    subnet.TotalWindow.Duration,
+				Description:    subnet.Description,
+			},
+			Matcher: matcher,
+		})
+	}
+
+	goCover_fc8b709538af__84[4] = 1;u.compiledRules.Store(compiled)
+}
+
+func usedTokens(capacity, tokens float64) int {goCover_fc8b709538af__85[0] = 3 ; goCover_fc8b709538af__85[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__85[2] = 85 ; goCover_fc8b709538af__85[3] = 1;
+	value := int(math.Ceil(capacity - tokens))
+	if value < 0 {goCover_fc8b709538af__85[5] = 1;
+		return 0
+	}
+	goCover_fc8b709538af__85[4] = 1;return value
+}
+
+func hasLimits(rule domain.RateLimitRule) bool {goCover_fc8b709538af__86[0] = 1 ; goCover_fc8b709538af__86[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__86[2] = 86 ; goCover_fc8b709538af__86[3] = 1;
+	return rule.RPS > 0 || rule.RPM > 0 || rule.RPH > 0 || rule.RPD > 0 || rule.CPS > 0 || rule.MaxConnections > 0 || rule.UploadBPS > 0 || rule.DownloadBPS > 0 || rule.TotalBytes > 0
+}
+
+func normalizeTrafficBytes(value int64) int64 {goCover_fc8b709538af__87[0] = 3 ; goCover_fc8b709538af__87[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__87[2] = 87 ; goCover_fc8b709538af__87[3] = 1;
+	if value < 0 {goCover_fc8b709538af__87[5] = 1;
+		return 0
+	}
+	goCover_fc8b709538af__87[4] = 1;return value
+}
+
+func lockIndex(key string) uint32 {goCover_fc8b709538af__88[0] = 1 ; goCover_fc8b709538af__88[1] = goCover_fc8b709538af_P ; goCover_fc8b709538af__88[2] = 88 ; goCover_fc8b709538af__88[3] = 1;
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(key))
+	return hasher.Sum32() % uint32(len((RateLimitUseCase{}).keyLocks))
+}

@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"proxy/internal/domain"
-	"proxy/internal/usecase"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/domain"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/usecase"
 )
 
 type ControllerIPAccessUseCase interface {
@@ -16,6 +16,7 @@ type ControllerIPAccessUseCase interface {
 	AddRule(ctx context.Context, input usecase.AddRuleInput) (domain.IPRule, error)
 	DeleteRule(ctx context.Context, id string) error
 	CheckIP(ctx context.Context, rawIP string) (domain.AccessDecision, error)
+	VerifyCaptcha(ctx context.Context, rawIP string, answer string) error
 }
 
 type CreateRuleRequest struct {

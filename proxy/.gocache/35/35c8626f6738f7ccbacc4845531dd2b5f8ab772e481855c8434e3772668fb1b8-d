@@ -1,0 +1,416 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/transport/http/gin/proxy_controller.go:1:1
+package gintransport
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"proxy/internal/domain"
+	"proxy/internal/usecase"
+)
+
+type ControllerProxyUseCase interface {
+	ResolveUpstream(ctx context.Context) (*url.URL, error)
+	FlushInterval() int64
+}
+
+type ControllerCacheUseCase interface {
+	Lookup(ctx context.Context, request domain.CacheRequest) (domain.CacheEntry, bool, error)
+	Set(ctx context.Context, candidate domain.CacheCandidate, body []byte) (domain.CacheEntry, bool, error)
+	DecideCachePolicy(input domain.CacheCandidate) domain.CacheDecision
+	InvalidateByKey(ctx context.Context, key string) (int, error)
+	InvalidateByPrefix(ctx context.Context, prefix string) (int, error)
+	InvalidateByRegex(ctx context.Context, pattern string) (int, error)
+	InvalidateByTags(ctx context.Context, tags []string) (int, error)
+	InvalidateExpired(ctx context.Context) (int, error)
+	Clear(ctx context.Context) (int, error)
+	HandleInvalidationEvent(ctx context.Context, event domain.CacheInvalidationEvent) (int, error)
+}
+
+type ProxyController struct {
+	useCase    ControllerProxyUseCase
+	monitoring usecase.MonitoringRecorder
+	rateLimit  rateLimitBandwidthController
+	cache      cacheProxyController
+}
+
+const (
+	proxyContextRateLimitDecisionKey     = "rate_limit_decision"
+	proxyContextReservedDownloadBytesKey = "rate_limit_reserved_download_bytes"
+	proxyContextCacheStatusKey           = "cache_status"
+)
+
+type rateLimitBandwidthController interface {
+	ReserveResponseBandwidth(ctx context.Context, rawIP string, downloadBytes int64) (domain.RateLimitDecision, error)
+}
+
+type cacheProxyController interface {
+	Lookup(ctx context.Context, request domain.CacheRequest) (domain.CacheEntry, bool, error)
+	Set(ctx context.Context, candidate domain.CacheCandidate, body []byte) (domain.CacheEntry, bool, error)
+	DecideCachePolicy(input domain.CacheCandidate) domain.CacheDecision
+}
+
+type responseBandwidthLimitError struct {
+	decision domain.RateLimitDecision
+}
+
+func (e *responseBandwidthLimitError) Error() string {goCover_867944a6df24__22[0] = 1 ; goCover_867944a6df24__22[1] = goCover_867944a6df24_P ; goCover_867944a6df24__22[2] = 22 ; goCover_867944a6df24__22[3] = 1;
+	return "rate limit exceeded"
+}
+
+func NewProxyController(useCase ControllerProxyUseCase, monitoring usecase.MonitoringRecorder, rateLimit rateLimitBandwidthController, cache cacheProxyController) *ProxyController {goCover_867944a6df24__23[0] = 1 ; goCover_867944a6df24__23[1] = goCover_867944a6df24_P ; goCover_867944a6df24__23[2] = 23 ; goCover_867944a6df24__23[3] = 1;
+	return &ProxyController{useCase: useCase, monitoring: monitoring, rateLimit: rateLimit, cache: cache}
+}
+
+func (h *ProxyController) Proxy() gin.HandlerFunc {goCover_867944a6df24__24[0] = 24 ; goCover_867944a6df24__24[1] = goCover_867944a6df24_P ; goCover_867944a6df24__24[2] = 24 ; goCover_867944a6df24__24[3] = 1;
+	return func(c *gin.Context) {goCover_867944a6df24__24[4] = 1;
+		cacheRequest := buildCacheRequest(c.Request)
+		if cacheEntry, ok := h.serveCachedResponse(c, cacheRequest); ok {goCover_867944a6df24__24[9] = 1;
+			_ = cacheEntry
+			return
+		}
+
+		goCover_867944a6df24__24[5] = 1;upstream, err := h.useCase.ResolveUpstream(c.Request.Context())
+		if err != nil {goCover_867944a6df24__24[10] = 1;
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		goCover_867944a6df24__24[6] = 1;startedAt := time.Now()
+
+		proxy := &httputil.ReverseProxy{
+			ModifyResponse: func(response *http.Response) error {goCover_867944a6df24__24[11] = 1;
+				upstreamLatency := time.Since(startedAt)
+				c.Set("upstream_latency", upstreamLatency)
+				h.monitoring.RecordUpstream(c.Request.Context(), usecase.RecordUpstreamInput{
+					Path:       c.Request.URL.Path,
+					StatusCode: response.StatusCode,
+					Latency:    upstreamLatency,
+				})
+				if response.ContentLength > 0 {goCover_867944a6df24__24[14] = 1;
+					decision, err := h.rateLimit.ReserveResponseBandwidth(c.Request.Context(), c.ClientIP(), response.ContentLength)
+					if err != nil {goCover_867944a6df24__24[17] = 1;
+						return err
+					}
+					goCover_867944a6df24__24[15] = 1;if !decision.Allowed {goCover_867944a6df24__24[18] = 1;
+						c.Set(proxyContextRateLimitDecisionKey, "deny")
+						h.monitoring.RecordRateLimitDecision(c.Request.Context(), usecase.RecordRateLimitInput{
+							IP:           decision.IP,
+							RuleID:       decision.RuleID,
+							LimitType:    decision.LimitType,
+							Allowed:      decision.Allowed,
+							CurrentValue: decision.CurrentValue,
+						})
+						return &responseBandwidthLimitError{decision: decision}
+					}
+					goCover_867944a6df24__24[16] = 1;c.Set(proxyContextReservedDownloadBytesKey, response.ContentLength)
+				}
+
+				goCover_867944a6df24__24[12] = 1;if err := h.captureAndStoreResponse(c, cacheRequest, response); err != nil {goCover_867944a6df24__24[19] = 1;
+					return err
+				}
+				goCover_867944a6df24__24[13] = 1;return nil
+			},
+			Rewrite: func(req *httputil.ProxyRequest) {goCover_867944a6df24__24[20] = 1;
+				req.SetURL(upstream)
+				req.Out.Host = upstream.Host
+				req.Out.URL.Path = singleJoiningSlash(upstream.Path, strings.TrimPrefix(c.Request.URL.Path, "/"))
+				req.Out.URL.RawPath = req.Out.URL.EscapedPath()
+				req.Out.URL.RawQuery = c.Request.URL.RawQuery
+				req.Out.Header.Set("X-Forwarded-Host", c.Request.Host)
+				if c.Request.TLS != nil {goCover_867944a6df24__24[22] = 1;
+					req.Out.Header.Set("X-Forwarded-Proto", "https")
+				} else{ goCover_867944a6df24__24[23] = 1;{
+					req.Out.Header.Set("X-Forwarded-Proto", "http")
+				}}
+				goCover_867944a6df24__24[21] = 1;req.Out.Header.Set("X-Forwarded-For", c.ClientIP())
+			},
+			FlushInterval: buildFlushInterval(h.useCase.FlushInterval()),
+		}
+
+		goCover_867944a6df24__24[7] = 1;proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {goCover_867944a6df24__24[24] = 1;
+			var bandwidthErr *responseBandwidthLimitError
+			if errors.As(err, &bandwidthErr) {goCover_867944a6df24__24[26] = 1;
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusTooManyRequests)
+				_, _ = writer.Write([]byte(`{"error":"rate limit exceeded","type":"` + bandwidthErr.decision.LimitType + `"}`))
+				return
+			}
+
+			goCover_867944a6df24__24[25] = 1;upstreamLatency := time.Since(startedAt)
+			c.Set("upstream_latency", upstreamLatency)
+			h.monitoring.RecordUpstream(c.Request.Context(), usecase.RecordUpstreamInput{
+				Path:       c.Request.URL.Path,
+				StatusCode: http.StatusBadGateway,
+				Latency:    upstreamLatency,
+				Error:      err.Error(),
+			})
+			newReverseProxyErrorHandler()(writer, request, err)
+		}
+
+		goCover_867944a6df24__24[8] = 1;proxy.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
+func (h *ProxyController) serveCachedResponse(c *gin.Context, request domain.CacheRequest) (domain.CacheEntry, bool) {goCover_867944a6df24__25[0] = 15 ; goCover_867944a6df24__25[1] = goCover_867944a6df24_P ; goCover_867944a6df24__25[2] = 25 ; goCover_867944a6df24__25[3] = 1;
+	if h.cache == nil {goCover_867944a6df24__25[9] = 1;
+		c.Set(proxyContextCacheStatusKey, "bypass")
+		return domain.CacheEntry{}, false
+	}
+
+	goCover_867944a6df24__25[4] = 1;entry, exists, err := h.cache.Lookup(c.Request.Context(), request)
+	if err != nil {goCover_867944a6df24__25[10] = 1;
+		c.Set(proxyContextCacheStatusKey, "lookup_error")
+		return domain.CacheEntry{}, false
+	}
+	goCover_867944a6df24__25[5] = 1;if !exists {goCover_867944a6df24__25[11] = 1;
+		c.Set(proxyContextCacheStatusKey, "miss")
+		h.monitoring.RecordCacheEvent(c.Request.Context(), usecase.RecordCacheInput{
+			Key:    "",
+			Domain: request.Domain,
+			Path:   request.Path,
+			Action: "miss",
+		})
+		return domain.CacheEntry{}, false
+	}
+
+	goCover_867944a6df24__25[6] = 1;downloadSize := int64(len(entry.Body))
+	if c.Request.Method == http.MethodHead && entry.Metadata.Size > 0 {goCover_867944a6df24__25[12] = 1;
+		downloadSize = entry.Metadata.Size
+	}
+	goCover_867944a6df24__25[7] = 1;if downloadSize > 0 {goCover_867944a6df24__25[13] = 1;
+		decision, err := h.rateLimit.ReserveResponseBandwidth(c.Request.Context(), c.ClientIP(), downloadSize)
+		if err != nil {goCover_867944a6df24__25[16] = 1;
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return domain.CacheEntry{}, true
+		}
+		goCover_867944a6df24__25[14] = 1;if !decision.Allowed {goCover_867944a6df24__25[17] = 1;
+			c.Set(proxyContextRateLimitDecisionKey, "deny")
+			h.monitoring.RecordRateLimitDecision(c.Request.Context(), usecase.RecordRateLimitInput{
+				IP:           decision.IP,
+				RuleID:       decision.RuleID,
+				LimitType:    decision.LimitType,
+				Allowed:      decision.Allowed,
+				CurrentValue: decision.CurrentValue,
+			})
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "rate limit exceeded",
+				"type":  decision.LimitType,
+			})
+			return domain.CacheEntry{}, true
+		}
+		goCover_867944a6df24__25[15] = 1;c.Set(proxyContextReservedDownloadBytesKey, downloadSize)
+	}
+
+	goCover_867944a6df24__25[8] = 1;c.Set(proxyContextCacheStatusKey, "hit")
+	h.monitoring.RecordCacheEvent(c.Request.Context(), usecase.RecordCacheInput{
+		Key:    entry.Metadata.Key,
+		Domain: request.Domain,
+		Path:   request.Path,
+		Action: "hit",
+	})
+	writeCachedResponse(c.Writer, c.Request.Method, entry)
+	return entry, true
+}
+
+func (h *ProxyController) captureAndStoreResponse(c *gin.Context, request domain.CacheRequest, response *http.Response) error {goCover_867944a6df24__26[0] = 25 ; goCover_867944a6df24__26[1] = goCover_867944a6df24_P ; goCover_867944a6df24__26[2] = 26 ; goCover_867944a6df24__26[3] = 1;
+	if h.cache == nil {goCover_867944a6df24__26[12] = 1;
+		c.Set(proxyContextCacheStatusKey, "disabled")
+		return nil
+	}
+
+	goCover_867944a6df24__26[4] = 1;size := response.ContentLength
+	if response.Request != nil && response.Request.Method == http.MethodHead && size < 0 {goCover_867944a6df24__26[13] = 1;
+		size = 0
+	}
+
+	goCover_867944a6df24__26[5] = 1;candidate := domain.CacheCandidate{
+		Request:     request,
+		StatusCode:  response.StatusCode,
+		ContentType: response.Header.Get("Content-Type"),
+		Headers:     sanitizeHeadersForCache(response.Header),
+		Size:        size,
+	}
+
+	decision := h.cache.DecideCachePolicy(candidate)
+	if !decision.Allowed {goCover_867944a6df24__26[14] = 1;
+		if contextCacheStatus(c) == "miss" {goCover_867944a6df24__26[16] = 1;
+			c.Set(proxyContextCacheStatusKey, "miss_bypass")
+		}
+		goCover_867944a6df24__26[15] = 1;return nil
+	}
+
+	goCover_867944a6df24__26[6] = 1;if response.Request != nil && response.Request.Method == http.MethodHead {goCover_867944a6df24__26[17] = 1;
+		if _, stored, err := h.cache.Set(c.Request.Context(), candidate, nil); err == nil && stored {goCover_867944a6df24__26[19] = 1;
+			c.Set(proxyContextCacheStatusKey, "miss_store")
+			h.monitoring.RecordCacheEvent(c.Request.Context(), usecase.RecordCacheInput{
+				Key:    decision.Key,
+				Domain: request.Domain,
+				Path:   request.Path,
+				Action: "store",
+				Rule:   decision.MatchedRule,
+			})
+		}
+		goCover_867944a6df24__26[18] = 1;return nil
+	}
+
+	goCover_867944a6df24__26[7] = 1;if response.ContentLength < 0 {goCover_867944a6df24__26[20] = 1;
+		if contextCacheStatus(c) == "miss" {goCover_867944a6df24__26[22] = 1;
+			c.Set(proxyContextCacheStatusKey, "miss_bypass")
+		}
+		goCover_867944a6df24__26[21] = 1;return nil
+	}
+
+	goCover_867944a6df24__26[8] = 1;body, err := io.ReadAll(response.Body)
+	if err != nil {goCover_867944a6df24__26[23] = 1;
+		return err
+	}
+	goCover_867944a6df24__26[9] = 1;_ = response.Body.Close()
+
+	candidate.Size = int64(len(body))
+	decision = h.cache.DecideCachePolicy(candidate)
+	if !decision.Allowed {goCover_867944a6df24__26[24] = 1;
+		response.Body = io.NopCloser(bytes.NewReader(body))
+		response.ContentLength = int64(len(body))
+		response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+		if contextCacheStatus(c) == "miss" {goCover_867944a6df24__26[26] = 1;
+			c.Set(proxyContextCacheStatusKey, "miss_bypass")
+		}
+		goCover_867944a6df24__26[25] = 1;return nil
+	}
+
+	goCover_867944a6df24__26[10] = 1;if _, stored, err := h.cache.Set(c.Request.Context(), candidate, body); err == nil && stored {goCover_867944a6df24__26[27] = 1;
+		c.Set(proxyContextCacheStatusKey, "miss_store")
+		h.monitoring.RecordCacheEvent(c.Request.Context(), usecase.RecordCacheInput{
+			Key:    decision.Key,
+			Domain: request.Domain,
+			Path:   request.Path,
+			Action: "store",
+			Rule:   decision.MatchedRule,
+		})
+	}
+
+	goCover_867944a6df24__26[11] = 1;response.Body = io.NopCloser(bytes.NewReader(body))
+	response.ContentLength = int64(len(body))
+	response.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
+}
+
+func buildCacheRequest(request *http.Request) domain.CacheRequest {goCover_867944a6df24__27[0] = 3 ; goCover_867944a6df24__27[1] = goCover_867944a6df24_P ; goCover_867944a6df24__27[2] = 27 ; goCover_867944a6df24__27[3] = 1;
+	scheme := "http"
+	if request.TLS != nil {goCover_867944a6df24__27[5] = 1;
+		scheme = "https"
+	}
+
+	goCover_867944a6df24__27[4] = 1;return domain.CacheRequest{
+		Method:   request.Method,
+		Scheme:   scheme,
+		Domain:   canonicalHost(request.Host),
+		Path:     request.URL.Path,
+		RawQuery: request.URL.RawQuery,
+		Headers:  cloneHeader(request.Header),
+	}
+}
+
+func writeCachedResponse(writer http.ResponseWriter, method string, entry domain.CacheEntry) {goCover_867944a6df24__28[0] = 9 ; goCover_867944a6df24__28[1] = goCover_867944a6df24_P ; goCover_867944a6df24__28[2] = 28 ; goCover_867944a6df24__28[3] = 1;
+	headers := writer.Header()
+	for key, values := range entry.Metadata.Headers {goCover_867944a6df24__28[7] = 1;
+		for _, value := range values {goCover_867944a6df24__28[8] = 1;
+			headers.Add(key, value)
+		}
+	}
+	goCover_867944a6df24__28[4] = 1;if entry.Metadata.ContentType != "" && headers.Get("Content-Type") == "" {goCover_867944a6df24__28[9] = 1;
+		headers.Set("Content-Type", entry.Metadata.ContentType)
+	}
+	goCover_867944a6df24__28[5] = 1;if method != http.MethodHead && len(entry.Body) > 0 {goCover_867944a6df24__28[10] = 1;
+		headers.Set("Content-Length", strconv.Itoa(len(entry.Body)))
+	}
+	goCover_867944a6df24__28[6] = 1;writer.WriteHeader(entry.Metadata.StatusCode)
+	if method != http.MethodHead {goCover_867944a6df24__28[11] = 1;
+		_, _ = writer.Write(entry.Body)
+	}
+}
+
+func sanitizeHeadersForCache(header http.Header) map[string][]string {goCover_867944a6df24__29[0] = 1 ; goCover_867944a6df24__29[1] = goCover_867944a6df24_P ; goCover_867944a6df24__29[2] = 29 ; goCover_867944a6df24__29[3] = 1;
+	cloned := cloneHeader(header)
+	removeHopByHopHeaders(cloned)
+	return cloned
+}
+
+func cloneHeader(header http.Header) map[string][]string {goCover_867944a6df24__30[0] = 3 ; goCover_867944a6df24__30[1] = goCover_867944a6df24_P ; goCover_867944a6df24__30[2] = 30 ; goCover_867944a6df24__30[3] = 1;
+	cloned := make(map[string][]string, len(header))
+	for key, values := range header {goCover_867944a6df24__30[5] = 1;
+		cloned[key] = append([]string(nil), values...)
+	}
+	goCover_867944a6df24__30[4] = 1;return cloned
+}
+
+func removeHopByHopHeaders(header map[string][]string) {goCover_867944a6df24__31[0] = 5 ; goCover_867944a6df24__31[1] = goCover_867944a6df24_P ; goCover_867944a6df24__31[2] = 31 ; goCover_867944a6df24__31[3] = 1;
+	connectionHeaders := header["Connection"]
+	for _, value := range connectionHeaders {goCover_867944a6df24__31[5] = 1;
+		for _, token := range strings.Split(value, ",") {goCover_867944a6df24__31[6] = 1;
+			delete(header, http.CanonicalHeaderKey(strings.TrimSpace(token)))
+		}
+	}
+
+	goCover_867944a6df24__31[4] = 1;for _, key := range []string{
+		"Connection",
+		"Proxy-Connection",
+		"Keep-Alive",
+		"Proxy-Authenticate",
+		"Proxy-Authorization",
+		"Te",
+		"Trailer",
+		"Transfer-Encoding",
+		"Upgrade",
+	} {goCover_867944a6df24__31[7] = 1;
+		delete(header, key)
+	}
+}
+
+func contextCacheStatus(c *gin.Context) string {goCover_867944a6df24__32[0] = 5 ; goCover_867944a6df24__32[1] = goCover_867944a6df24_P ; goCover_867944a6df24__32[2] = 32 ; goCover_867944a6df24__32[3] = 1;
+	value, exists := c.Get(proxyContextCacheStatusKey)
+	if !exists {goCover_867944a6df24__32[6] = 1;
+		return ""
+	}
+	goCover_867944a6df24__32[4] = 1;text, ok := value.(string)
+	if !ok {goCover_867944a6df24__32[7] = 1;
+		return ""
+	}
+	goCover_867944a6df24__32[5] = 1;return text
+}
+
+func canonicalHost(host string) string {goCover_867944a6df24__33[0] = 5 ; goCover_867944a6df24__33[1] = goCover_867944a6df24_P ; goCover_867944a6df24__33[2] = 33 ; goCover_867944a6df24__33[3] = 1;
+	host = strings.TrimSpace(host)
+	if host == "" {goCover_867944a6df24__33[6] = 1;
+		return ""
+	}
+	goCover_867944a6df24__33[4] = 1;if parsedHost, _, err := net.SplitHostPort(host); err == nil {goCover_867944a6df24__33[7] = 1;
+		return parsedHost
+	}
+	goCover_867944a6df24__33[5] = 1;return strings.Trim(host, "[]")
+}
+
+func singleJoiningSlash(basePath, requestPath string) string {goCover_867944a6df24__34[0] = 6 ; goCover_867944a6df24__34[1] = goCover_867944a6df24_P ; goCover_867944a6df24__34[2] = 34 ; goCover_867944a6df24__34[3] = 1;
+	switch {
+	case strings.HasSuffix(basePath, "/") && strings.HasPrefix(requestPath, "/"):goCover_867944a6df24__34[4] = 1;
+		return basePath + requestPath[1:]
+	case !strings.HasSuffix(basePath, "/") && !strings.HasPrefix(requestPath, "/"):goCover_867944a6df24__34[5] = 1;
+		if requestPath == "" {goCover_867944a6df24__34[8] = 1;
+			return basePath
+		}
+		goCover_867944a6df24__34[6] = 1;return basePath + "/" + requestPath
+	default:goCover_867944a6df24__34[7] = 1;
+		return basePath + requestPath
+	}
+}

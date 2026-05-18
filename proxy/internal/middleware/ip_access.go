@@ -8,10 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"proxy/internal/usecase"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/usecase"
 )
 
-func IPAccess(logger *zerolog.Logger, checker usecase.IPAccessChecker) gin.HandlerFunc {
+func IPAccess(logger *zerolog.Logger, checker usecase.IPAccessChecker, monitoring usecase.MonitoringRecorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := strings.TrimSpace(c.ClientIP())
 		decision, err := checker.CheckIP(c.Request.Context(), clientIP)
@@ -29,6 +29,13 @@ func IPAccess(logger *zerolog.Logger, checker usecase.IPAccessChecker) gin.Handl
 			return
 		}
 
+		c.Set(contextAccessDecisionKey, decision.Decision)
+		monitoring.RecordAccessDecision(c.Request.Context(), usecase.RecordAccessDecisionInput{
+			IP:       decision.IP,
+			Decision: decision.Decision,
+			RuleID:   decision.MatchedRuleID,
+		})
+
 		event := logger.Info().
 			Str("ip", decision.IP).
 			Str("timestamp", time.Now().UTC().Format(time.RFC3339Nano)).
@@ -43,6 +50,13 @@ func IPAccess(logger *zerolog.Logger, checker usecase.IPAccessChecker) gin.Handl
 		event.Msg("IP access evaluated")
 
 		if !decision.Allowed {
+			if decision.VerificationRequired {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"error": "captcha verification required",
+				})
+				return
+			}
+
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":    "access denied",
 				"decision": decision,

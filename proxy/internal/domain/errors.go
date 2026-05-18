@@ -11,4 +11,5 @@ var (
 	ErrInvalidIP         = errors.New("invalid IP address")
 	ErrInvalidUpstream   = errors.New("invalid upstream URL")
 	ErrNilAccessSnapshot = errors.New("access snapshot is not initialized")
+	ErrInvalidCaptcha    = errors.New("captcha verification failed")
 )

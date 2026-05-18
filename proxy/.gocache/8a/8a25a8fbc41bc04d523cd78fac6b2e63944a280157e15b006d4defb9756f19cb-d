@@ -1,0 +1,126 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/transport/http/gin/monitoring_controller.go:1:1
+package gintransport
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"proxy/internal/domain"
+	"proxy/internal/usecase"
+)
+
+type ControllerMonitoringUseCase interface {
+	usecase.MonitoringRecorder
+	GetMetrics(ctx context.Context) (domain.MetricsResponse, error)
+	GetDashboardOverview(ctx context.Context) (domain.DashboardOverview, error)
+	GetDashboardClients(ctx context.Context) (domain.DashboardClients, error)
+	GetDashboardUpstream(ctx context.Context) (domain.DashboardUpstream, error)
+	GetDashboardRateLimits(ctx context.Context) (domain.DashboardRateLimits, error)
+	GetDashboardIPAccess(ctx context.Context) (domain.DashboardIPAccess, error)
+}
+
+type MonitoringController struct {
+	useCase ControllerMonitoringUseCase
+}
+
+func NewMonitoringController(useCase ControllerMonitoringUseCase) *MonitoringController {goCover_867944a6df24__15[0] = 1 ; goCover_867944a6df24__15[1] = goCover_867944a6df24_P ; goCover_867944a6df24__15[2] = 15 ; goCover_867944a6df24__15[3] = 1;
+	return &MonitoringController{useCase: useCase}
+}
+
+// Metrics godoc
+// @Summary Get service metrics
+// @Tags monitoring
+// @Produce json
+// @Success 200 {object} domain.MetricsResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/metrics [get]
+func (h *MonitoringController) Metrics(c *gin.Context) {goCover_867944a6df24__16[0] = 3 ; goCover_867944a6df24__16[1] = goCover_867944a6df24_P ; goCover_867944a6df24__16[2] = 16 ; goCover_867944a6df24__16[3] = 1;
+	response, err := h.useCase.GetMetrics(c.Request.Context())
+	if err != nil {goCover_867944a6df24__16[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__16[4] = 1;c.JSON(http.StatusOK, response)
+}
+
+// Overview godoc
+// @Summary Get dashboard overview
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} domain.DashboardOverview
+// @Failure 500 {object} errorResponse
+// @Router /api/dashboard/overview [get]
+func (h *MonitoringController) Overview(c *gin.Context) {goCover_867944a6df24__17[0] = 3 ; goCover_867944a6df24__17[1] = goCover_867944a6df24_P ; goCover_867944a6df24__17[2] = 17 ; goCover_867944a6df24__17[3] = 1;
+	response, err := h.useCase.GetDashboardOverview(c.Request.Context())
+	if err != nil {goCover_867944a6df24__17[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__17[4] = 1;c.JSON(http.StatusOK, response)
+}
+
+// Clients godoc
+// @Summary Get dashboard client stats
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} domain.DashboardClients
+// @Failure 500 {object} errorResponse
+// @Router /api/dashboard/clients [get]
+func (h *MonitoringController) Clients(c *gin.Context) {goCover_867944a6df24__18[0] = 3 ; goCover_867944a6df24__18[1] = goCover_867944a6df24_P ; goCover_867944a6df24__18[2] = 18 ; goCover_867944a6df24__18[3] = 1;
+	response, err := h.useCase.GetDashboardClients(c.Request.Context())
+	if err != nil {goCover_867944a6df24__18[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__18[4] = 1;c.JSON(http.StatusOK, response)
+}
+
+// Upstream godoc
+// @Summary Get upstream status
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} domain.DashboardUpstream
+// @Failure 500 {object} errorResponse
+// @Router /api/dashboard/upstream [get]
+func (h *MonitoringController) Upstream(c *gin.Context) {goCover_867944a6df24__19[0] = 3 ; goCover_867944a6df24__19[1] = goCover_867944a6df24_P ; goCover_867944a6df24__19[2] = 19 ; goCover_867944a6df24__19[3] = 1;
+	response, err := h.useCase.GetDashboardUpstream(c.Request.Context())
+	if err != nil {goCover_867944a6df24__19[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__19[4] = 1;c.JSON(http.StatusOK, response)
+}
+
+// RateLimits godoc
+// @Summary Get rate limit dashboard data
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} domain.DashboardRateLimits
+// @Failure 500 {object} errorResponse
+// @Router /api/dashboard/rate_limits [get]
+func (h *MonitoringController) RateLimits(c *gin.Context) {goCover_867944a6df24__20[0] = 3 ; goCover_867944a6df24__20[1] = goCover_867944a6df24_P ; goCover_867944a6df24__20[2] = 20 ; goCover_867944a6df24__20[3] = 1;
+	response, err := h.useCase.GetDashboardRateLimits(c.Request.Context())
+	if err != nil {goCover_867944a6df24__20[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__20[4] = 1;c.JSON(http.StatusOK, response)
+}
+
+// IPAccess godoc
+// @Summary Get IP access dashboard data
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} domain.DashboardIPAccess
+// @Failure 500 {object} errorResponse
+// @Router /api/dashboard/ip_access [get]
+func (h *MonitoringController) IPAccess(c *gin.Context) {goCover_867944a6df24__21[0] = 3 ; goCover_867944a6df24__21[1] = goCover_867944a6df24_P ; goCover_867944a6df24__21[2] = 21 ; goCover_867944a6df24__21[3] = 1;
+	response, err := h.useCase.GetDashboardIPAccess(c.Request.Context())
+	if err != nil {goCover_867944a6df24__21[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+	goCover_867944a6df24__21[4] = 1;c.JSON(http.StatusOK, response)
+}

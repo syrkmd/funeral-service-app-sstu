@@ -1,6 +1,6 @@
 package gintransport
 
-import "proxy/internal/middleware"
+import "github.com/syrkmd/funeral-service-app-sstu/proxy/internal/middleware"
 
 var (
 	IPAccess      = middleware.IPAccess

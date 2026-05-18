@@ -1,0 +1,35 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/logger/logger.go:1:1
+package logger
+
+import (
+	"os"
+	"strings"
+
+	"github.com/rs/zerolog"
+)
+
+func New(level string) (zerolog.Logger, error) {goCover_9f255cc11915__0[0] = 3 ; goCover_9f255cc11915__0[1] = goCover_9f255cc11915_P ; goCover_9f255cc11915__0[2] = 0 ; goCover_9f255cc11915__0[3] = 1;
+	parsedLevel, err := zerolog.ParseLevel(strings.ToLower(level))
+	if err != nil {goCover_9f255cc11915__0[5] = 1;
+		return zerolog.Logger{}, err
+	}
+
+	goCover_9f255cc11915__0[4] = 1;logger := zerolog.New(os.Stdout).With().Timestamp().Logger().Level(parsedLevel)
+	return logger, nil
+}
+
+type UseCaseAdapter struct {
+	logger *zerolog.Logger
+}
+
+func NewUseCaseAdapter(logger *zerolog.Logger) *UseCaseAdapter {goCover_9f255cc11915__1[0] = 1 ; goCover_9f255cc11915__1[1] = goCover_9f255cc11915_P ; goCover_9f255cc11915__1[2] = 1 ; goCover_9f255cc11915__1[3] = 1;
+	return &UseCaseAdapter{logger: logger}
+}
+
+func (a *UseCaseAdapter) Error(msg string, err error) {goCover_9f255cc11915__2[0] = 3 ; goCover_9f255cc11915__2[1] = goCover_9f255cc11915_P ; goCover_9f255cc11915__2[2] = 2 ; goCover_9f255cc11915__2[3] = 1;
+	if a == nil || a.logger == nil {goCover_9f255cc11915__2[5] = 1;
+		return
+	}
+
+	goCover_9f255cc11915__2[4] = 1;a.logger.Error().Err(err).Msg(msg)
+}

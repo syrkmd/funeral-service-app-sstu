@@ -8,9 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"proxy/internal/config"
-	"proxy/internal/domain"
-	"proxy/pkg/ipmatch"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/config"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/domain"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/pkg/ipmatch"
 )
 
 type IPAccessRepository struct {
@@ -125,21 +125,45 @@ func (r *IPAccessRepository) GetSnapshot(_ context.Context) (domain.AccessSnapsh
 
 func (r *IPAccessRepository) rebuildSnapshotLocked() error {
 	compiled := make([]domain.CompiledIPRule, 0, len(r.systemRules)+len(r.runtimeRules))
-	for _, rule := range r.collectRulesLocked() {
+	denyLookup := ipmatch.NewRuleSet[domain.CompiledIPRule]()
+	allowLookup := ipmatch.NewRuleSet[domain.CompiledIPRule]()
+	grayLookup := ipmatch.NewRuleSet[domain.CompiledIPRule]()
+
+	orderedRules := r.collectRulesLocked()
+	for idx, rule := range orderedRules {
 		matcher, err := ipmatch.Parse(rule.Value)
 		if err != nil {
 			return fmt.Errorf("compile rule %s: %w", rule.ID, err)
 		}
+		prefixes, err := ipmatch.Prefixes(rule.Value)
+		if err != nil {
+			return fmt.Errorf("compile rule prefixes %s: %w", rule.ID, err)
+		}
 
-		compiled = append(compiled, domain.CompiledIPRule{
+		compiledRule := domain.CompiledIPRule{
 			Rule:    rule,
 			Matcher: matcher,
-		})
+		}
+		compiled = append(compiled, compiledRule)
+
+		switch rule.Type {
+		case domain.ListTypeDeny:
+			denyLookup.InsertPrefixes(prefixes, idx, compiledRule)
+		case domain.ListTypeAllow:
+			allowLookup.InsertPrefixes(prefixes, idx, compiledRule)
+		case domain.ListTypeGray:
+			grayLookup.InsertPrefixes(prefixes, idx, compiledRule)
+		default:
+			return domain.ErrInvalidRuleType
+		}
 	}
 
 	snapshot := domain.AccessSnapshot{
 		Version:       r.version.Add(1),
 		DefaultPolicy: r.defaultPolicy.Load().(domain.DefaultPolicy),
+		DenyLookup:    denyLookup,
+		AllowLookup:   allowLookup,
+		GrayLookup:    grayLookup,
 	}
 
 	for _, rule := range compiled {

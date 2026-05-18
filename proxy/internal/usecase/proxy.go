@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/url"
 
-	"proxy/internal/domain"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/domain"
 )
 
 type ProxyUseCase struct {

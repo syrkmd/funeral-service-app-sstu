@@ -1,0 +1,186 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/transport/http/gin/cache_controller.go:1:1
+package gintransport
+
+import (
+	"context"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"proxy/internal/domain"
+	"proxy/internal/usecase"
+)
+
+type ControllerCacheManagementUseCase interface {
+	InvalidateByKey(ctx context.Context, key string) (int, error)
+	InvalidateByPrefix(ctx context.Context, prefix string) (int, error)
+	InvalidateByRegex(ctx context.Context, pattern string) (int, error)
+	InvalidateByTags(ctx context.Context, tags []string) (int, error)
+	InvalidateExpired(ctx context.Context) (int, error)
+	Clear(ctx context.Context) (int, error)
+	HandleInvalidationEvent(ctx context.Context, event domain.CacheInvalidationEvent) (int, error)
+}
+
+type deleteCountResponse struct {
+	DeletedCount int `json:"deleted_count"`
+}
+
+type CacheController struct {
+	useCase    ControllerCacheManagementUseCase
+	monitoring usecase.MonitoringRecorder
+}
+
+func NewCacheController(useCase ControllerCacheManagementUseCase, monitoring usecase.MonitoringRecorder) *CacheController {goCover_867944a6df24__0[0] = 1 ; goCover_867944a6df24__0[1] = goCover_867944a6df24_P ; goCover_867944a6df24__0[2] = 0 ; goCover_867944a6df24__0[3] = 1;
+	return &CacheController{useCase: useCase, monitoring: monitoring}
+}
+
+// DeleteByKey godoc
+// @Summary Invalidate cache by exact key
+// @Tags cache
+// @Produce json
+// @Param key path string true "Cache key"
+// @Success 200 {object} deleteCountResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/key/{key} [delete]
+func (h *CacheController) DeleteByKey(c *gin.Context) {goCover_867944a6df24__1[0] = 5 ; goCover_867944a6df24__1[1] = goCover_867944a6df24_P ; goCover_867944a6df24__1[2] = 1 ; goCover_867944a6df24__1[3] = 1;
+	key := strings.TrimSpace(c.Param("key"))
+	if key == "" {goCover_867944a6df24__1[6] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "key is required"})
+		return
+	}
+
+	goCover_867944a6df24__1[4] = 1;deleted, err := h.useCase.InvalidateByKey(c.Request.Context(), key)
+	if err != nil {goCover_867944a6df24__1[7] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__1[5] = 1;h.recordInvalidation(c, "invalidate_key", key, deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+// DeleteByPrefix godoc
+// @Summary Invalidate cache by key prefix
+// @Tags cache
+// @Produce json
+// @Param value query string true "Cache key prefix"
+// @Success 200 {object} deleteCountResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/prefix [delete]
+func (h *CacheController) DeleteByPrefix(c *gin.Context) {goCover_867944a6df24__2[0] = 5 ; goCover_867944a6df24__2[1] = goCover_867944a6df24_P ; goCover_867944a6df24__2[2] = 2 ; goCover_867944a6df24__2[3] = 1;
+	prefix := strings.TrimSpace(c.Query("value"))
+	if prefix == "" {goCover_867944a6df24__2[6] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "prefix is required"})
+		return
+	}
+
+	goCover_867944a6df24__2[4] = 1;deleted, err := h.useCase.InvalidateByPrefix(c.Request.Context(), prefix)
+	if err != nil {goCover_867944a6df24__2[7] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__2[5] = 1;h.recordInvalidation(c, "invalidate_prefix", prefix, deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+// DeleteByRegex godoc
+// @Summary Invalidate cache by regex
+// @Tags cache
+// @Produce json
+// @Param pattern query string true "Go regexp pattern"
+// @Success 200 {object} deleteCountResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/regex [delete]
+func (h *CacheController) DeleteByRegex(c *gin.Context) {goCover_867944a6df24__3[0] = 5 ; goCover_867944a6df24__3[1] = goCover_867944a6df24_P ; goCover_867944a6df24__3[2] = 3 ; goCover_867944a6df24__3[3] = 1;
+	pattern := strings.TrimSpace(c.Query("pattern"))
+	if pattern == "" {goCover_867944a6df24__3[6] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "pattern is required"})
+		return
+	}
+
+	goCover_867944a6df24__3[4] = 1;deleted, err := h.useCase.InvalidateByRegex(c.Request.Context(), pattern)
+	if err != nil {goCover_867944a6df24__3[7] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__3[5] = 1;h.recordInvalidation(c, "invalidate_regex", pattern, deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+// DeleteByTag godoc
+// @Summary Invalidate cache by tag
+// @Tags cache
+// @Produce json
+// @Param tag path string true "Cache tag"
+// @Success 200 {object} deleteCountResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/tags/{tag} [delete]
+func (h *CacheController) DeleteByTag(c *gin.Context) {goCover_867944a6df24__4[0] = 5 ; goCover_867944a6df24__4[1] = goCover_867944a6df24_P ; goCover_867944a6df24__4[2] = 4 ; goCover_867944a6df24__4[3] = 1;
+	tag := strings.TrimSpace(c.Param("tag"))
+	if tag == "" {goCover_867944a6df24__4[6] = 1;
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "tag is required"})
+		return
+	}
+
+	goCover_867944a6df24__4[4] = 1;deleted, err := h.useCase.InvalidateByTags(c.Request.Context(), []string{tag})
+	if err != nil {goCover_867944a6df24__4[7] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__4[5] = 1;h.recordInvalidation(c, "invalidate_tags", tag, deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+// DeleteExpired godoc
+// @Summary Invalidate expired cache entries
+// @Tags cache
+// @Produce json
+// @Success 200 {object} deleteCountResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/expired [delete]
+func (h *CacheController) DeleteExpired(c *gin.Context) {goCover_867944a6df24__5[0] = 3 ; goCover_867944a6df24__5[1] = goCover_867944a6df24_P ; goCover_867944a6df24__5[2] = 5 ; goCover_867944a6df24__5[3] = 1;
+	deleted, err := h.useCase.InvalidateExpired(c.Request.Context())
+	if err != nil {goCover_867944a6df24__5[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__5[4] = 1;h.recordInvalidation(c, "invalidate_expired", "", deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+// Clear godoc
+// @Summary Clear all cache entries
+// @Tags cache
+// @Produce json
+// @Success 200 {object} deleteCountResponse
+// @Failure 500 {object} errorResponse
+// @Router /api/cache/all [delete]
+func (h *CacheController) Clear(c *gin.Context) {goCover_867944a6df24__6[0] = 3 ; goCover_867944a6df24__6[1] = goCover_867944a6df24_P ; goCover_867944a6df24__6[2] = 6 ; goCover_867944a6df24__6[3] = 1;
+	deleted, err := h.useCase.Clear(c.Request.Context())
+	if err != nil {goCover_867944a6df24__6[5] = 1;
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		return
+	}
+
+	goCover_867944a6df24__6[4] = 1;h.recordInvalidation(c, "clear_all", "", deleted)
+	c.JSON(http.StatusOK, deleteCountResponse{DeletedCount: deleted})
+}
+
+func (h *CacheController) recordInvalidation(c *gin.Context, action string, key string, _ int) {goCover_867944a6df24__7[0] = 1 ; goCover_867944a6df24__7[1] = goCover_867944a6df24_P ; goCover_867944a6df24__7[2] = 7 ; goCover_867944a6df24__7[3] = 1;
+	h.monitoring.RecordCacheEvent(c.Request.Context(), usecase.RecordCacheInput{
+		Key:    key,
+		Domain: c.Request.Host,
+		Path:   c.FullPath(),
+		Action: action,
+		Rule:   "",
+	})
+}

@@ -11,25 +11,25 @@ import (
 	"sync/atomic"
 	"time"
 
-	"proxy/internal/config"
-	"proxy/internal/domain"
-	"proxy/pkg/ipmatch"
-
-	"github.com/rs/zerolog/log"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/config"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/internal/domain"
+	"github.com/syrkmd/funeral-service-app-sstu/proxy/pkg/ipmatch"
 )
 
 type RateLimitUseCase struct {
 	repo          RateLimitStateRepository
 	config        ConfigProvider
+	logger        UseCaseLogger
 	now           func() time.Time
 	compiledRules atomic.Value
 	keyLocks      [256]sync.Mutex
 }
 
-func NewRateLimitUseCase(repo RateLimitStateRepository, provider ConfigProvider) *RateLimitUseCase {
+func NewRateLimitUseCase(repo RateLimitStateRepository, provider ConfigProvider, logger UseCaseLogger) *RateLimitUseCase {
 	useCase := &RateLimitUseCase{
 		repo:   repo,
 		config: provider,
+		logger: logger,
 		now:    time.Now,
 	}
 
@@ -43,7 +43,7 @@ func NewRateLimitUseCase(repo RateLimitStateRepository, provider ConfigProvider)
 	return useCase
 }
 
-func (u *RateLimitUseCase) CheckRateLimit(ctx context.Context, rawIP string) (domain.RateLimitDecision, error) {
+func (u *RateLimitUseCase) CheckRateLimit(ctx context.Context, rawIP string, uploadBytes int64) (domain.RateLimitDecision, error) {
 	ip := strings.TrimSpace(rawIP)
 	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
 
@@ -62,9 +62,61 @@ func (u *RateLimitUseCase) CheckRateLimit(ctx context.Context, rawIP string) (do
 	addr = addr.Unmap()
 
 	rules := u.resolveRules(addr, compiled)
+	acquiredConnectionKeys := make([]string, 0, len(rules))
 
 	for _, rule := range rules {
-		allowed, limitType, currentValue, err := u.consume(ctx, rule)
+		allowed, limitType, currentValue, acquiredKey, err := u.consume(ctx, rule, normalizeTrafficBytes(uploadBytes), 0)
+		if err != nil {
+			_ = u.ReleaseConnections(ctx, acquiredConnectionKeys)
+			return domain.RateLimitDecision{}, err
+		}
+		if acquiredKey != "" {
+			acquiredConnectionKeys = append(acquiredConnectionKeys, acquiredKey)
+		}
+		if !allowed {
+			_ = u.ReleaseConnections(ctx, acquiredConnectionKeys)
+			return domain.RateLimitDecision{
+				IP:             ip,
+				Allowed:        false,
+				Reason:         "rate_limit",
+				RuleID:         rule.ID,
+				RuleValue:      rule.Value,
+				LimitType:      limitType,
+				CurrentValue:   currentValue,
+				ConnectionKeys: nil,
+			}, nil
+		}
+	}
+
+	return domain.RateLimitDecision{
+		IP:             ip,
+		Allowed:        true,
+		Reason:         "rate_limit_ok",
+		ConnectionKeys: acquiredConnectionKeys,
+	}, nil
+}
+
+func (u *RateLimitUseCase) ReserveResponseBandwidth(ctx context.Context, rawIP string, downloadBytes int64) (domain.RateLimitDecision, error) {
+	ip := strings.TrimSpace(rawIP)
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+
+	if !compiled.Enabled {
+		return domain.RateLimitDecision{
+			IP:      ip,
+			Allowed: true,
+			Reason:  "rate_limit_disabled",
+		}, nil
+	}
+
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return domain.RateLimitDecision{}, fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+	addr = addr.Unmap()
+
+	rules := u.resolveRules(addr, compiled)
+	for _, rule := range rules {
+		allowed, limitType, currentValue, err := u.consumeTraffic(ctx, rule, 0, normalizeTrafficBytes(downloadBytes))
 		if err != nil {
 			return domain.RateLimitDecision{}, err
 		}
@@ -88,6 +140,53 @@ func (u *RateLimitUseCase) CheckRateLimit(ctx context.Context, rawIP string) (do
 	}, nil
 }
 
+func (u *RateLimitUseCase) AccountTraffic(ctx context.Context, rawIP string, uploadBytes int64, downloadBytes int64) error {
+	uploadBytes = normalizeTrafficBytes(uploadBytes)
+	downloadBytes = normalizeTrafficBytes(downloadBytes)
+	if uploadBytes == 0 && downloadBytes == 0 {
+		return nil
+	}
+
+	ip := strings.TrimSpace(rawIP)
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+	if !compiled.Enabled {
+		return nil
+	}
+
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return fmt.Errorf("%w: %s", domain.ErrInvalidIP, rawIP)
+	}
+	addr = addr.Unmap()
+
+	rules := u.resolveRules(addr, compiled)
+	for _, rule := range rules {
+		if _, _, _, err := u.consumeTraffic(ctx, rule, uploadBytes, downloadBytes); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (u *RateLimitUseCase) ListRules(_ context.Context) ([]domain.RateLimitRule, error) {
+	compiled := u.compiledRules.Load().(compiledRateLimitConfig)
+	rules := make([]domain.RateLimitRule, 0, 1+len(compiled.Subnets))
+
+	if hasLimits(compiled.DefaultRule) {
+		rules = append(rules, compiled.DefaultRule)
+	}
+	for _, subnetRule := range compiled.Subnets {
+		rules = append(rules, subnetRule.Rule)
+	}
+
+	return rules, nil
+}
+
+func (u *RateLimitUseCase) ListBuckets(ctx context.Context) ([]domain.RateLimitBucketSnapshot, error) {
+	return u.repo.SnapshotBuckets(ctx)
+}
+
 func (u *RateLimitUseCase) resolveRules(addr netip.Addr, compiled compiledRateLimitConfig) []domain.RateLimitRule {
 	rules := make([]domain.RateLimitRule, 0, 1+len(compiled.Subnets))
 
@@ -107,32 +206,95 @@ func (u *RateLimitUseCase) resolveRules(addr netip.Addr, compiled compiledRateLi
 	return rules
 }
 
-func (u *RateLimitUseCase) consume(ctx context.Context, rule domain.RateLimitRule) (bool, string, int, error) {
+func (u *RateLimitUseCase) consume(ctx context.Context, rule domain.RateLimitRule, uploadBytes int64, downloadBytes int64) (bool, string, int, string, error) {
+	if rule.CPS > 0 {
+		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "cps"), float64(rule.CPS), float64(rule.CPS), time.Second)
+		if err != nil || !allowed {
+			return allowed, "cps", currentValue, "", err
+		}
+	}
+
+	var acquiredKey string
+	if rule.MaxConnections > 0 {
+		key := bucketKey(rule, "connections")
+		allowed, currentValue, err := u.repo.TryAcquireConnection(ctx, key, rule.MaxConnections)
+		if err != nil || !allowed {
+			return allowed, "connections", currentValue, "", err
+		}
+		acquiredKey = key
+	}
+
 	if rule.RPS > 0 {
 		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rps"), float64(rule.RPS), float64(rule.RPS), time.Second)
 		if err != nil || !allowed {
-			return allowed, "rps", currentValue, err
+			if acquiredKey != "" {
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			return allowed, "rps", currentValue, "", err
 		}
 	}
 
 	if rule.RPM > 0 {
 		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rpm"), float64(rule.RPM), float64(rule.RPM), time.Minute)
 		if err != nil || !allowed {
-			return allowed, "rpm", currentValue, err
+			if acquiredKey != "" {
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			return allowed, "rpm", currentValue, "", err
 		}
 	}
 
 	if rule.RPH > 0 {
 		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rph"), float64(rule.RPH), float64(rule.RPH), time.Hour)
 		if err != nil || !allowed {
-			return allowed, "rph", currentValue, err
+			if acquiredKey != "" {
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			return allowed, "rph", currentValue, "", err
 		}
 	}
 
 	if rule.RPD > 0 {
 		allowed, currentValue, err := u.take(ctx, bucketKey(rule, "rpd"), float64(rule.RPD), float64(rule.RPD), 24*time.Hour)
 		if err != nil || !allowed {
-			return allowed, "rpd", currentValue, err
+			if acquiredKey != "" {
+				_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+			}
+			return allowed, "rpd", currentValue, "", err
+		}
+	}
+
+	allowed, limitType, currentValue, err := u.consumeTraffic(ctx, rule, uploadBytes, downloadBytes)
+	if err != nil || !allowed {
+		if acquiredKey != "" {
+			_ = u.repo.ReleaseConnection(ctx, acquiredKey)
+		}
+		return allowed, limitType, currentValue, "", err
+	}
+
+	return true, "", 0, acquiredKey, nil
+}
+
+func (u *RateLimitUseCase) consumeTraffic(ctx context.Context, rule domain.RateLimitRule, uploadBytes int64, downloadBytes int64) (bool, string, int, error) {
+	if uploadBytes > 0 && rule.UploadBPS > 0 {
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "upload"), float64(rule.UploadBPS), float64(rule.UploadBPS), time.Second, float64(uploadBytes))
+		if err != nil || !allowed {
+			return allowed, "upload", currentValue, err
+		}
+	}
+
+	if downloadBytes > 0 && rule.DownloadBPS > 0 {
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "download"), float64(rule.DownloadBPS), float64(rule.DownloadBPS), time.Second, float64(downloadBytes))
+		if err != nil || !allowed {
+			return allowed, "download", currentValue, err
+		}
+	}
+
+	totalBytes := uploadBytes + downloadBytes
+	if totalBytes > 0 && rule.TotalBytes > 0 && rule.TotalWindow > 0 {
+		allowed, currentValue, err := u.takeAmount(ctx, bucketKey(rule, "total"), float64(rule.TotalBytes), float64(rule.TotalBytes), rule.TotalWindow, float64(totalBytes))
+		if err != nil || !allowed {
+			return allowed, "total", currentValue, err
 		}
 	}
 
@@ -140,6 +302,14 @@ func (u *RateLimitUseCase) consume(ctx context.Context, rule domain.RateLimitRul
 }
 
 func (u *RateLimitUseCase) take(ctx context.Context, key string, capacity float64, refillTokens float64, period time.Duration) (bool, int, error) {
+	return u.takeAmount(ctx, key, capacity, refillTokens, period, 1)
+}
+
+func (u *RateLimitUseCase) takeAmount(ctx context.Context, key string, capacity float64, refillTokens float64, period time.Duration, amount float64) (bool, int, error) {
+	if amount <= 0 {
+		return true, 0, nil
+	}
+
 	lock := &u.keyLocks[lockIndex(key)]
 	lock.Lock()
 	defer lock.Unlock()
@@ -163,14 +333,14 @@ func (u *RateLimitUseCase) take(ctx context.Context, key string, capacity float6
 		state.LastRefill = now
 	}
 
-	if state.Tokens < 1 {
+	if state.Tokens < amount {
 		if err := u.repo.SaveBucket(ctx, key, state); err != nil {
 			return false, 0, err
 		}
 		return false, usedTokens(capacity, state.Tokens), nil
 	}
 
-	state.Tokens--
+	state.Tokens -= amount
 	state.LastRefill = now
 
 	if err := u.repo.SaveBucket(ctx, key, state); err != nil {
@@ -178,6 +348,18 @@ func (u *RateLimitUseCase) take(ctx context.Context, key string, capacity float6
 	}
 
 	return true, usedTokens(capacity, state.Tokens), nil
+}
+
+func (u *RateLimitUseCase) ReleaseConnections(ctx context.Context, keys []string) error {
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		if err := u.repo.ReleaseConnection(ctx, key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func bucketKey(rule domain.RateLimitRule, dimension string) string {
@@ -199,12 +381,18 @@ func (u *RateLimitUseCase) applyConfig(cfg config.Config) {
 	compiled := compiledRateLimitConfig{
 		Enabled: cfg.RateLimit.Enabled,
 		DefaultRule: domain.RateLimitRule{
-			ID:    "default-ip",
-			Scope: domain.RateLimitScopeIP,
-			RPS:   cfg.RateLimit.RPS,
-			RPM:   cfg.RateLimit.RPM,
-			RPH:   cfg.RateLimit.RPH,
-			RPD:   cfg.RateLimit.RPD,
+			ID:             "default-ip",
+			Scope:          domain.RateLimitScopeIP,
+			RPS:            cfg.RateLimit.RPS,
+			RPM:            cfg.RateLimit.RPM,
+			RPH:            cfg.RateLimit.RPH,
+			RPD:            cfg.RateLimit.RPD,
+			CPS:            cfg.RateLimit.CPS,
+			MaxConnections: cfg.RateLimit.MaxConnections,
+			UploadBPS:      cfg.RateLimit.UploadBPS,
+			DownloadBPS:    cfg.RateLimit.DownloadBPS,
+			TotalBytes:     cfg.RateLimit.TotalBytes,
+			TotalWindow:    cfg.RateLimit.TotalWindow.Duration,
 		},
 		Subnets: make([]compiledSubnetRule, 0, len(cfg.RateLimit.Subnets)),
 	}
@@ -212,7 +400,9 @@ func (u *RateLimitUseCase) applyConfig(cfg config.Config) {
 	for idx, subnet := range cfg.RateLimit.Subnets {
 		matcher, err := ipmatch.Parse(subnet.CIDR)
 		if err != nil {
-			log.Error().Err(err).Msg("invalid subnet in rate limit config")
+			if u.logger != nil {
+				u.logger.Error("invalid subnet in rate limit config", err)
+			}
 			continue
 		}
 
@@ -223,14 +413,20 @@ func (u *RateLimitUseCase) applyConfig(cfg config.Config) {
 
 		compiled.Subnets = append(compiled.Subnets, compiledSubnetRule{
 			Rule: domain.RateLimitRule{
-				ID:          ruleID,
-				Scope:       domain.RateLimitScopeSubnet,
-				Value:       subnet.CIDR,
-				RPS:         subnet.RPS,
-				RPM:         subnet.RPM,
-				RPH:         subnet.RPH,
-				RPD:         subnet.RPD,
-				Description: subnet.Description,
+				ID:             ruleID,
+				Scope:          domain.RateLimitScopeSubnet,
+				Value:          subnet.CIDR,
+				RPS:            subnet.RPS,
+				RPM:            subnet.RPM,
+				RPH:            subnet.RPH,
+				RPD:            subnet.RPD,
+				CPS:            subnet.CPS,
+				MaxConnections: subnet.MaxConnections,
+				UploadBPS:      subnet.UploadBPS,
+				DownloadBPS:    subnet.DownloadBPS,
+				TotalBytes:     subnet.TotalBytes,
+				TotalWindow:    subnet.TotalWindow.Duration,
+				Description:    subnet.Description,
 			},
 			Matcher: matcher,
 		})
@@ -248,7 +444,14 @@ func usedTokens(capacity, tokens float64) int {
 }
 
 func hasLimits(rule domain.RateLimitRule) bool {
-	return rule.RPS > 0 || rule.RPM > 0 || rule.RPH > 0 || rule.RPD > 0
+	return rule.RPS > 0 || rule.RPM > 0 || rule.RPH > 0 || rule.RPD > 0 || rule.CPS > 0 || rule.MaxConnections > 0 || rule.UploadBPS > 0 || rule.DownloadBPS > 0 || rule.TotalBytes > 0
+}
+
+func normalizeTrafficBytes(value int64) int64 {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func lockIndex(key string) uint32 {

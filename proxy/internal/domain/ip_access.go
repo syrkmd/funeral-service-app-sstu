@@ -34,19 +34,27 @@ type CompiledIPRule struct {
 	Matcher IPMatcher
 }
 
+type IPRuleLookup interface {
+	Match(addr netip.Addr) (CompiledIPRule, bool)
+}
+
 type AccessSnapshot struct {
 	Version       uint64
 	DefaultPolicy DefaultPolicy
 	DenyRules     []CompiledIPRule
 	AllowRules    []CompiledIPRule
 	GrayRules     []CompiledIPRule
+	DenyLookup    IPRuleLookup
+	AllowLookup   IPRuleLookup
+	GrayLookup    IPRuleLookup
 }
 
 type AccessDecision struct {
-	IP            string `json:"ip"`
-	Allowed       bool   `json:"allowed"`
-	Decision      string `json:"decision"`
-	Reason        string `json:"reason"`
-	MatchedRuleID string `json:"matched_rule_id,omitempty"`
-	MatchedValue  string `json:"matched_value,omitempty"`
+	IP                   string `json:"ip"`
+	Allowed              bool   `json:"allowed"`
+	Decision             string `json:"decision"`
+	Reason               string `json:"reason"`
+	VerificationRequired bool   `json:"verification_required,omitempty"`
+	MatchedRuleID        string `json:"matched_rule_id,omitempty"`
+	MatchedValue         string `json:"matched_value,omitempty"`
 }

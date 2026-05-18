@@ -1,0 +1,104 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/internal/middleware/request_logger.go:1:1
+package middleware
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+
+	"proxy/internal/usecase"
+)
+
+const (
+	contextAccessDecisionKey    = "access_decision"
+	contextRateLimitDecisionKey = "rate_limit_decision"
+	contextCacheStatusKey       = "cache_status"
+	contextUpstreamLatencyKey   = "upstream_latency"
+)
+
+func RequestLogger(logger *zerolog.Logger, monitoring usecase.MonitoringRecorder) gin.HandlerFunc {goCover_a06cc6b18777__5[0] = 4 ; goCover_a06cc6b18777__5[1] = goCover_a06cc6b18777_P ; goCover_a06cc6b18777__5[2] = 5 ; goCover_a06cc6b18777__5[3] = 1;
+	return func(c *gin.Context) {goCover_a06cc6b18777__5[4] = 1;
+		start := time.Now()
+		monitoring.BeginRequest(c.Request.Context(), usecase.BeginRequestInput{})
+		c.Next()
+
+		path := c.FullPath()
+		if path == "" {goCover_a06cc6b18777__5[6] = 1;
+			path = c.Request.URL.Path
+		}
+
+		goCover_a06cc6b18777__5[5] = 1;accessDecision := contextString(c, contextAccessDecisionKey, "not_applicable")
+		rateLimitDecision := contextString(c, contextRateLimitDecisionKey, "not_applicable")
+		cacheStatus := contextString(c, contextCacheStatusKey, "not_applicable")
+		upstreamLatency := contextDuration(c, contextUpstreamLatencyKey)
+		bytesIn := requestBytesIn(c.Request)
+		bytesOut := int64(c.Writer.Size())
+		latency := time.Since(start)
+
+		monitoring.FinishRequest(c.Request.Context(), usecase.FinishRequestInput{
+			Timestamp:         time.Now().UTC(),
+			Method:            c.Request.Method,
+			Path:              path,
+			ClientIP:          c.ClientIP(),
+			Status:            c.Writer.Status(),
+			Latency:           latency,
+			BytesIn:           bytesIn,
+			BytesOut:          bytesOut,
+			AccessDecision:    accessDecision,
+			RateLimitDecision: rateLimitDecision,
+			CacheStatus:       cacheStatus,
+			UpstreamLatency:   upstreamLatency,
+		})
+
+		logger.Info().
+			Str("method", c.Request.Method).
+			Str("path", path).
+			Int("status", c.Writer.Status()).
+			Dur("latency", latency).
+			Str("client_ip", c.ClientIP()).
+			Int64("bytes_in", bytesIn).
+			Int64("bytes_out", bytesOut).
+			Dur("upstream_latency", upstreamLatency).
+			Str("access_decision", accessDecision).
+			Str("rate_limit_decision", rateLimitDecision).
+			Str("cache_status", cacheStatus).
+			Msg("request completed")
+	}
+}
+
+func contextString(c *gin.Context, key string, fallback string) string {goCover_a06cc6b18777__6[0] = 5 ; goCover_a06cc6b18777__6[1] = goCover_a06cc6b18777_P ; goCover_a06cc6b18777__6[2] = 6 ; goCover_a06cc6b18777__6[3] = 1;
+	value, exists := c.Get(key)
+	if !exists {goCover_a06cc6b18777__6[6] = 1;
+		return fallback
+	}
+
+	goCover_a06cc6b18777__6[4] = 1;text, ok := value.(string)
+	if !ok || text == "" {goCover_a06cc6b18777__6[7] = 1;
+		return fallback
+	}
+
+	goCover_a06cc6b18777__6[5] = 1;return text
+}
+
+func contextDuration(c *gin.Context, key string) time.Duration {goCover_a06cc6b18777__7[0] = 5 ; goCover_a06cc6b18777__7[1] = goCover_a06cc6b18777_P ; goCover_a06cc6b18777__7[2] = 7 ; goCover_a06cc6b18777__7[3] = 1;
+	value, exists := c.Get(key)
+	if !exists {goCover_a06cc6b18777__7[6] = 1;
+		return 0
+	}
+
+	goCover_a06cc6b18777__7[4] = 1;duration, ok := value.(time.Duration)
+	if !ok {goCover_a06cc6b18777__7[7] = 1;
+		return 0
+	}
+
+	goCover_a06cc6b18777__7[5] = 1;return duration
+}
+
+func requestBytesIn(request *http.Request) int64 {goCover_a06cc6b18777__8[0] = 3 ; goCover_a06cc6b18777__8[1] = goCover_a06cc6b18777_P ; goCover_a06cc6b18777__8[2] = 8 ; goCover_a06cc6b18777__8[3] = 1;
+	if request.ContentLength < 0 {goCover_a06cc6b18777__8[5] = 1;
+		return 0
+	}
+	goCover_a06cc6b18777__8[4] = 1;return request.ContentLength
+}

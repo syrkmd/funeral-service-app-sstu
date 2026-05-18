@@ -1,0 +1,131 @@
+//line /Users/yvla/Downloads/Funeral Service Interface Design сurr/proxy/cmd/app/main.go:1:1
+package main; import _ "runtime/coverage"
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog/log"
+
+	_ "proxy/docs"
+
+	"proxy/internal/config"
+	"proxy/internal/logger"
+	"proxy/internal/repository"
+	_jsii "proxy/internal/transport/http/gin"
+	"proxy/internal/usecase"
+)
+
+// @title Proxy Service API
+// @version 1.0
+// @description HTTP proxy service.
+// @BasePath /
+func main() {goCover_6cb8b00ec7b6__0[0] = 22 ; goCover_6cb8b00ec7b6__0[1] = goCover_6cb8b00ec7b6_P ; goCover_6cb8b00ec7b6__0[2] = 0 ; goCover_6cb8b00ec7b6__0[3] = 1;
+	cfgPath := os.Getenv("CONFIG_PATH")
+	if cfgPath == "" {goCover_6cb8b00ec7b6__0[11] = 1;
+		cfgPath = "config.yaml"
+	}
+
+	goCover_6cb8b00ec7b6__0[4] = 1;cfgManager, err := config.NewManager(cfgPath)
+	if err != nil {goCover_6cb8b00ec7b6__0[12] = 1;
+		panic(err)
+	}
+
+	goCover_6cb8b00ec7b6__0[5] = 1;appLogger, err := logger.New(cfgManager.Current().Logging.Level)
+	if err != nil {goCover_6cb8b00ec7b6__0[13] = 1;
+		panic(err)
+	}
+	goCover_6cb8b00ec7b6__0[6] = 1;log.Logger = appLogger
+
+	ipRepo, err := repository.NewIPAccessRepository(cfgManager.Current())
+	if err != nil {goCover_6cb8b00ec7b6__0[14] = 1;
+		appLogger.Fatal().Err(err).Msg("failed to initialize IP access repository")
+	}
+	goCover_6cb8b00ec7b6__0[7] = 1;verifiedIPRepo := repository.NewVerifiedIPRepository(cfgManager.Current().Access.VerificationTTL.Duration)
+	cacheRepo := repository.NewCacheRepository(cfgManager.Current().Cache.CleanupInterval.Duration)
+	monitoringRepo := repository.NewMonitoringRepository()
+	ipAccessUseCase := usecase.NewIPAccessUseCase(ipRepo, verifiedIPRepo, 4096)
+	ipAccessUseCase.SetDecisionCacheTTL(cfgManager.Current().Access.DecisionCacheTTL.Duration)
+
+	cfgManager.Subscribe(func(cfg config.Config) {goCover_6cb8b00ec7b6__0[15] = 1;
+		if err := ipRepo.ApplyConfig(cfg); err != nil {goCover_6cb8b00ec7b6__0[17] = 1;
+			appLogger.Error().Err(err).Msg("failed to apply reloaded config")
+			return
+		}
+		goCover_6cb8b00ec7b6__0[16] = 1;verifiedIPRepo.SetTTL(cfg.Access.VerificationTTL.Duration)
+		ipAccessUseCase.SetDecisionCacheTTL(cfg.Access.DecisionCacheTTL.Duration)
+		cacheRepo.SetCleanupInterval(cfg.Cache.CleanupInterval.Duration)
+
+		if updatedLogger, err := logger.New(cfg.Logging.Level); err == nil {goCover_6cb8b00ec7b6__0[18] = 1;
+			log.Logger = updatedLogger
+		} else{ goCover_6cb8b00ec7b6__0[19] = 1;{
+			appLogger.Error().Err(err).Msg("failed to reconfigure logger level")
+		}}
+	})
+
+	goCover_6cb8b00ec7b6__0[8] = 1;rateRepo := repository.NewRateLimitRepository()
+	rateUseCase := usecase.NewRateLimitUseCase(rateRepo, cfgManager, logger.NewUseCaseAdapter(&log.Logger))
+	cacheUseCase := usecase.NewCacheUseCase(cacheRepo, cfgManager)
+	promRegistry := prometheus.NewRegistry()
+	promRegistry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	prometheusRepo := repository.NewPrometheusRepository(promRegistry)
+	monitoringUseCase := usecase.NewMonitoringUseCase(monitoringRepo, prometheusRepo, ipAccessUseCase, rateUseCase)
+	proxyUseCase := usecase.NewProxyUseCase(cfgManager)
+
+	router := _jsii.NewRouter(_jsii.Dependencies{
+		Logger:            &log.Logger,
+		MetricsHandler:    promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
+		MonitoringUseCase: monitoringUseCase,
+		IPAccessUseCase:   ipAccessUseCase,
+		RateLimitUseCase:  rateUseCase,
+		CacheUseCase:      cacheUseCase,
+		ProxyUseCase:      proxyUseCase,
+	})
+
+	server := &http.Server{
+		Addr:         cfgManager.Current().Server.Address,
+		Handler:      router,
+		ReadTimeout:  cfgManager.Current().Server.ReadTimeout.Duration,
+		WriteTimeout: cfgManager.Current().Server.WriteTimeout.Duration,
+		IdleTimeout:  cfgManager.Current().Server.IdleTimeout.Duration,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {goCover_6cb8b00ec7b6__0[20] = 1;
+		if err := cfgManager.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {goCover_6cb8b00ec7b6__0[21] = 1;
+			log.Error().Err(err).Msg("config watcher stopped with error")
+		}
+	}()
+
+	goCover_6cb8b00ec7b6__0[9] = 1;go rateRepo.StartCleanup(ctx, 10*time.Minute, 48*time.Hour)
+	go verifiedIPRepo.StartCleanup(ctx, time.Minute)
+	go cacheRepo.StartCleanup(ctx)
+
+	go func() {goCover_6cb8b00ec7b6__0[22] = 1;
+		log.Info().Str("address", server.Addr).Msg("starting server")
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {goCover_6cb8b00ec7b6__0[23] = 1;
+			log.Fatal().Err(err).Msg("server failed")
+		}
+	}()
+
+	goCover_6cb8b00ec7b6__0[10] = 1;<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfgManager.Current().Server.ShutdownTimeout.Duration)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {goCover_6cb8b00ec7b6__0[24] = 1;
+		log.Error().Err(err).Msg("graceful shutdown failed")
+	}
+}
