@@ -18,7 +18,7 @@ public class FuneralService {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "title", length = 1000)
+    @Column(name = "description", length = 1000)
     private String description;
 
     @Column(name = "price", nullable = false)

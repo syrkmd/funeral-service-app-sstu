@@ -14,7 +14,7 @@ public class Order {
 
     @Id
     @Column(name = "id", length = 32, nullable = false)
-    private Long id;
+    private String id;
 
     @Column(name = "order_date", nullable = false)
     private LocalDate orderDate;
@@ -32,7 +32,7 @@ public class Order {
     @Column(name = "client_name", nullable = false)
     private String clientName;
 
-    @Column(name = "phone", nullable = false)
+    @Column(name = "client_phone", nullable = false)
     private String clientPhone;
 
     @Column(name = "client_email")

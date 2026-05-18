@@ -16,6 +16,6 @@ public class AdminUser {
     @Column(name = "login", nullable = false, unique = true)
     private String login;
 
-    @Column(name = "password", nullable = false)
-    private String password;
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
 }
