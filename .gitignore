@@ -1,6 +1,12 @@
 node_modules
 dist
 .env
+
 .vscode
-STATE_CONSISTENCY.md
-POLLING_INTEGRATION.md
+.idea
+
+.gocache
+go.work.sum
+
+.DS_Store
+*.log

@@ -29,7 +29,6 @@ export function AdminLayout() {
     { path: "/admin", label: "Dashboard", exact: true },
     { path: "/admin/orders", label: "Orders" },
     { path: "/admin/ip-access", label: "IP Access" },
-    { path: "/admin/logs", label: "Logs" },
     { path: "/admin/rate-limiting", label: "Rate Limiting" },
   ];
 

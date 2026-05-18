@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const baseURL = import.meta.env.VITE_API_URL || "";
 
 export const apiClient = axios.create({
   baseURL,
@@ -24,3 +24,4 @@ apiClient.interceptors.response.use(
 );
 
 export const useMockApi = import.meta.env.VITE_USE_MOCK === "true";
+export const useMockAuth = import.meta.env.VITE_USE_MOCK_AUTH !== "false";

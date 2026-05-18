@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   addIPRule as addIPRuleRequest,
+  checkIPAccess as checkIPAccessRequest,
   getProxyConfig,
   removeIPRule as removeIPRuleRequest,
   setDefaultPolicy as setDefaultPolicyRequest,
@@ -33,10 +34,10 @@ type ProxyStore = {
   removeIPRule: (id: string) => Promise<void>;
   setDefaultPolicy: (policy: "allow" | "deny") => Promise<void>;
   updateRateLimits: (settings: RateLimitSettings) => Promise<void>;
-  checkIPAccess: (ip: string) => "allowed" | "denied" | "captcha";
+  checkIPAccess: (ip: string) => Promise<"allowed" | "denied" | "captcha">;
 };
 
-export const useProxyStore = create<ProxyStore>()((set, get) => ({
+export const useProxyStore = create<ProxyStore>()((set) => ({
   ipRules: [],
   defaultPolicy: "allow",
   rateLimitSettings: {
@@ -84,16 +85,13 @@ export const useProxyStore = create<ProxyStore>()((set, get) => ({
     set(config);
   },
 
-  checkIPAccess: (ip) => {
-    const state = get();
-    const rule = state.ipRules.find((item) => item.ip === ip);
+  checkIPAccess: async (ip) => {
+    const decision = await checkIPAccessRequest(ip);
 
-    if (rule) {
-      if (rule.type === "allow") return "allowed";
-      if (rule.type === "deny") return "denied";
-      if (rule.type === "gray") return "captcha";
+    if (decision.verificationRequired || decision.decision === "gray") {
+      return "captcha";
     }
 
-    return state.defaultPolicy === "allow" ? "allowed" : "denied";
+    return decision.allowed ? "allowed" : "denied";
   },
 }));

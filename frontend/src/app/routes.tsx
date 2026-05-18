@@ -11,7 +11,6 @@ import { Dashboard } from "./components/admin/Dashboard";
 import { Orders } from "./components/admin/Orders";
 import { OrderDetails } from "./components/admin/OrderDetails";
 import { IPAccess } from "./components/admin/IPAccess";
-import { Logs } from "./components/admin/Logs";
 import { RateLimiting } from "./components/admin/RateLimiting";
 import { AccountLogin } from "./components/account/AccountLogin";
 import { AccountVerify } from "./components/account/AccountVerify";
@@ -43,7 +42,6 @@ export const router = createBrowserRouter([
       { path: "orders", Component: Orders },
       { path: "orders/:orderId", Component: OrderDetails },
       { path: "ip-access", Component: IPAccess },
-      { path: "logs", Component: Logs },
       { path: "rate-limiting", Component: RateLimiting },
     ],
   },

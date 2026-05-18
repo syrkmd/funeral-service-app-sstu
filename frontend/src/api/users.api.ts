@@ -1,4 +1,4 @@
-import { apiClient, useMockApi } from "./client";
+import { apiClient, useMockAuth } from "./client";
 import { mockUsersApi } from "./mock/users.mock";
 
 export type AccountSession = {
@@ -55,7 +55,7 @@ const realUsersApi: UsersApi = {
   },
 };
 
-const usersApi = useMockApi ? mockUsersApi : realUsersApi;
+const usersApi = useMockAuth ? mockUsersApi : realUsersApi;
 
 export const verifyAccountCode = usersApi.verifyAccountCode;
 export const getAccountSession = usersApi.getAccountSession;

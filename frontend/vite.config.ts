@@ -19,4 +19,12 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8080',
+      '/metrics': 'http://localhost:8080',
+      '/swagger': 'http://localhost:8080',
+      '/healthz': 'http://localhost:8080',
+    },
+  },
 })

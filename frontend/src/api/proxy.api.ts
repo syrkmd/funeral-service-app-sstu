@@ -1,5 +1,5 @@
-import { apiClient, useMockApi } from "./client";
-import { mockProxyApi } from "./mock/proxy.mock";
+import { apiClient } from "./client";
+import { fetchDashboardRateLimits, type DashboardIPRule } from "./metrics.api";
 import type { IPAccessRule, IPAccessType, RateLimitSettings } from "../app/store/proxyStore";
 
 export type ProxyConfig = {
@@ -16,39 +16,102 @@ export type ProxyApi = {
   updateRateLimits: (settings: RateLimitSettings) => Promise<ProxyConfig>;
 };
 
+export type IPAccessDecision = {
+  ip: string;
+  allowed: boolean;
+  decision: string;
+  reason: string;
+  verificationRequired?: boolean;
+  matchedRuleId?: string;
+  matchedValue?: string;
+};
+
+function mapBackendRuleType(type: DashboardIPRule["type"]): IPAccessType {
+  if (type === "allowlist") return "allow";
+  if (type === "denylist") return "deny";
+  return "gray";
+}
+
+function mapFrontendRuleType(type: IPAccessType): DashboardIPRule["type"] {
+  if (type === "allow") return "allowlist";
+  if (type === "deny") return "denylist";
+  return "graylist";
+}
+
+function mapBackendIPRule(rule: DashboardIPRule): IPAccessRule {
+  return {
+    id: rule.id,
+    ip: rule.value,
+    type: mapBackendRuleType(rule.type),
+    note: rule.description,
+    addedAt: "-",
+  };
+}
+
 const realProxyApi: ProxyApi = {
   async getConfig() {
-    const response = await apiClient.get<ProxyConfig>("/proxy/config");
-    return response.data;
+    const [ipRulesResponse, rateLimits] = await Promise.all([
+      apiClient.get<DashboardIPRule[]>("/api/ip_access/lists"),
+      fetchDashboardRateLimits(),
+    ]);
+
+    const primaryRule = rateLimits.activeRateLimitRules[0];
+
+    return {
+      ipRules: (ipRulesResponse.data || []).map(mapBackendIPRule),
+      defaultPolicy: "allow",
+      rateLimitSettings: {
+        rpsLimit: primaryRule?.rps || 0,
+        rpmLimit: primaryRule?.rpm || 0,
+      },
+    };
   },
 
   async addIPRule(rule) {
-    const response = await apiClient.post<IPAccessRule>("/proxy/ip-rules", rule);
-    return response.data;
+    const response = await apiClient.post<DashboardIPRule>("/api/ip_access/lists", {
+      type: mapFrontendRuleType(rule.type),
+      value: rule.ip,
+      description: rule.note,
+    });
+    return mapBackendIPRule(response.data);
   },
 
   async removeIPRule(id) {
-    await apiClient.delete(`/proxy/ip-rules/${id}`);
+    await apiClient.delete(`/api/ip_access/lists/${id}`);
   },
 
   async setDefaultPolicy(policy) {
-    const response = await apiClient.patch<ProxyConfig>("/proxy/default-policy", {
-      policy,
-    });
-    return response.data;
+    const config = await realProxyApi.getConfig();
+    return { ...config, defaultPolicy: policy };
   },
 
   async updateRateLimits(settings) {
-    const response = await apiClient.patch<ProxyConfig>("/proxy/rate-limits", settings);
-    return response.data;
+    const config = await realProxyApi.getConfig();
+    return { ...config, rateLimitSettings: settings };
   },
 };
 
-const proxyApi = useMockApi ? mockProxyApi : realProxyApi;
+const proxyApi = realProxyApi;
 
 export const getProxyConfig = proxyApi.getConfig;
 export const addIPRule = proxyApi.addIPRule;
 export const removeIPRule = proxyApi.removeIPRule;
 export const setDefaultPolicy = proxyApi.setDefaultPolicy;
 export const updateRateLimits = proxyApi.updateRateLimits;
+export async function checkIPAccess(ip: string): Promise<IPAccessDecision> {
+  const response = await apiClient.get("/api/ip_access/check", {
+    params: { ip },
+  });
+  const data = response.data || {};
+
+  return {
+    ip: data.ip || "",
+    allowed: Boolean(data.allowed),
+    decision: data.decision || "",
+    reason: data.reason || "",
+    verificationRequired: Boolean(data.verification_required ?? data.verificationRequired),
+    matchedRuleId: data.matched_rule_id ?? data.matchedRuleId,
+    matchedValue: data.matched_value ?? data.matchedValue,
+  };
+}
 export type { IPAccessType };

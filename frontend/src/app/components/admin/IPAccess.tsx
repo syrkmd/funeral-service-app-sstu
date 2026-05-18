@@ -1,46 +1,116 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { fetchDashboardIPAccess, sumValues, type DashboardIPAccessResponse } from "../../../api/metrics.api";
+import { checkIPAccess as checkIPAccessRequest } from "../../../api/proxy.api";
 import { useProxyStore, type IPAccessType } from "../../store/proxyStore";
+
+type IPCheckResult = {
+  status: "allowed" | "denied" | "captcha" | "error";
+  reason?: string;
+  matchedRuleId?: string;
+  matchedValue?: string;
+};
 
 export function IPAccess() {
   const ipRules = useProxyStore((state) => state.ipRules);
-  const defaultPolicy = useProxyStore((state) => state.defaultPolicy);
   const loadConfig = useProxyStore((state) => state.loadConfig);
   const addIPRule = useProxyStore((state) => state.addIPRule);
   const removeIPRule = useProxyStore((state) => state.removeIPRule);
-  const setDefaultPolicy = useProxyStore((state) => state.setDefaultPolicy);
-  const checkIPAccess = useProxyStore((state) => state.checkIPAccess);
+  const [ipAccessStats, setIPAccessStats] = useState<DashboardIPAccessResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
+  const [checkIP, setCheckIP] = useState("");
+  const [checkResult, setCheckResult] = useState<IPCheckResult | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newIP, setNewIP] = useState("");
   const [newType, setNewType] = useState<IPAccessType>("allow");
   const [newNote, setNewNote] = useState("");
 
-  const [checkIP, setCheckIP] = useState("");
-  const [checkResult, setCheckResult] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadConfig();
+  const loadIPAccess = useCallback(async () => {
+    try {
+      await loadConfig();
+      const stats = await fetchDashboardIPAccess();
+      setIPAccessStats(stats);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load IP access data");
+    }
   }, [loadConfig]);
 
-  const handleAddIP = async () => {
-    if (!newIP) return;
+  useEffect(() => {
+    loadIPAccess();
+    const interval = setInterval(loadIPAccess, 2000);
 
-    await addIPRule({
-      ip: newIP,
-      type: newType,
-      note: newNote || undefined,
-    });
+    return () => clearInterval(interval);
+  }, [loadIPAccess]);
 
-    setNewIP("");
-    setNewType("allow");
-    setNewNote("");
-    setShowForm(false);
+  const openAddForm = () => {
+    setShowForm(true);
+    setActionError(null);
   };
 
-  const handleCheckIP = () => {
-    if (!checkIP) return;
-    const result = checkIPAccess(checkIP);
-    setCheckResult(result);
+  const handleAddIP = async () => {
+    const normalizedIP = newIP.trim();
+    if (!normalizedIP) return;
+
+    try {
+      await addIPRule({
+        ip: normalizedIP,
+        type: newType,
+        note: newNote.trim() || undefined,
+      });
+      setNewIP("");
+      setNewNote("");
+      setShowForm(false);
+      setActionError(null);
+      await loadIPAccess();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to add IP rule");
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    try {
+      await removeIPRule(id);
+      setActionError(null);
+      await loadIPAccess();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to delete IP rule");
+    }
+  };
+
+  const handleCheckIP = async () => {
+    const normalizedIP = checkIP.trim();
+    if (!normalizedIP) return;
+
+    if (normalizedIP.includes("/") || normalizedIP.includes("-")) {
+      setCheckResult({
+        status: "error",
+        reason: "Введите конкретный IP-адрес, например 10.0.0.5",
+      });
+      return;
+    }
+
+    try {
+      const result = await checkIPAccessRequest(normalizedIP);
+      const status = result.verificationRequired || result.decision === "gray"
+        ? "captcha"
+        : result.allowed
+        ? "allowed"
+        : "denied";
+
+      setCheckResult({
+        status,
+        reason: result.reason,
+        matchedRuleId: result.matchedRuleId,
+        matchedValue: result.matchedValue,
+      });
+    } catch (error) {
+      setCheckResult({
+        status: "error",
+        reason: error instanceof Error ? error.message : "Failed to check IP",
+      });
+    }
   };
 
   const getTypeLabel = (type: IPAccessType) => {
@@ -63,46 +133,114 @@ export function IPAccess() {
     );
   };
 
+  const allowCount = ipRules.filter((rule) => rule.type === "allow").length;
+  const denyCount = ipRules.filter((rule) => rule.type === "deny").length;
+  const grayCount = ipRules.filter((rule) => rule.type === "gray").length;
+  const decisionCount = sumValues(ipAccessStats?.denyStatistics);
+
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="bg-card border border-border rounded-lg p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
+      {actionError && (
+        <div className="bg-card border border-border rounded-lg p-4 text-sm text-destructive">
+          {actionError}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl text-foreground">IP Access Control</h2>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={openAddForm}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
         >
-          {showForm ? "Отмена" : "+ Добавить IP"}
+          Add Rule
         </button>
       </div>
 
-      {/* Default Policy */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h3 className="text-lg mb-4 text-foreground">Политика по умолчанию</h3>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={defaultPolicy === "allow"}
-              onChange={() => setDefaultPolicy("allow")}
-              className="w-4 h-4"
-            />
-            <span className="text-foreground">Разрешить</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={defaultPolicy === "deny"}
-              onChange={() => setDefaultPolicy("deny")}
-              className="w-4 h-4"
-            />
-            <span className="text-foreground">Запретить</span>
-          </label>
+      {/* IP Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="text-sm text-muted-foreground mb-2">Allowlist</div>
+          <div className="text-3xl text-foreground">{allowCount}</div>
         </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          Применяется к IP-адресам, не входящим в списки
-        </p>
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="text-sm text-muted-foreground mb-2">Denylist</div>
+          <div className="text-3xl text-foreground">{denyCount}</div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="text-sm text-muted-foreground mb-2">Graylist</div>
+          <div className="text-3xl text-foreground">{grayCount}</div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="text-sm text-muted-foreground mb-2">Decisions</div>
+          <div className="text-3xl text-foreground">{decisionCount}</div>
+        </div>
       </div>
+
+      {/* Add Form */}
+      {showForm && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg text-foreground">Новое IP правило</h3>
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Отмена
+            </button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-foreground mb-2">
+                IP / CIDR *
+              </label>
+              <input
+                type="text"
+                placeholder="10.0.0.5 или 10.0.0.0/8"
+                value={newIP}
+                onChange={(event) => setNewIP(event.target.value)}
+                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-2">Type *</label>
+              <select
+                value={newType}
+                onChange={(event) => setNewType(event.target.value as IPAccessType)}
+                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="allow">Allow</option>
+                <option value="deny">Deny</option>
+                <option value="gray">Gray / Challenge</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-2">
+                Note / comment
+              </label>
+              <input
+                type="text"
+                placeholder="Описание правила"
+                value={newNote}
+                onChange={(event) => setNewNote(event.target.value)}
+                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <button
+              onClick={handleAddIP}
+              disabled={!newIP.trim()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Добавить правило
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* IP Check Tool */}
       <div className="bg-card border border-border rounded-lg p-6">
@@ -129,68 +267,26 @@ export function IPAccess() {
             <p className="text-sm text-foreground">
               Результат:{" "}
               <span className="font-medium">
-                {checkResult === "allowed" && "✓ Разрешён"}
-                {checkResult === "denied" && "✗ Запрещён"}
-                {checkResult === "captcha" && "⚠ Требуется проверка (captcha)"}
+                {checkResult.status === "allowed" && "✓ Разрешён"}
+                {checkResult.status === "denied" && "✗ Запрещён"}
+                {checkResult.status === "captcha" && "⚠ Требуется проверка (captcha)"}
+                {checkResult.status === "error" && `Ошибка: ${checkResult.reason}`}
               </span>
             </p>
+            {checkResult.reason && checkResult.status !== "error" && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Reason: {checkResult.reason}
+              </p>
+            )}
+            {checkResult.matchedRuleId && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Matched rule: {checkResult.matchedRuleId}
+                {checkResult.matchedValue && ` (${checkResult.matchedValue})`}
+              </p>
+            )}
           </div>
         )}
       </div>
-
-      {/* Add Form */}
-      {showForm && (
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h3 className="text-lg mb-4 text-foreground">Новое правило</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-foreground mb-2">
-                IP адрес *
-              </label>
-              <input
-                type="text"
-                placeholder="192.168.1.1 или 10.0.0.0/8 или 192.168.1.1-192.168.1.255"
-                value={newIP}
-                onChange={(e) => setNewIP(e.target.value)}
-                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Поддерживаемые форматы: одиночный IP, CIDR, диапазон
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-2">Тип *</label>
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as IPAccessType)}
-                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="allow">Разрешён</option>
-                <option value="deny">Запрещён</option>
-                <option value="gray">Проверка (captcha)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-2">
-                Заметка (опционально)
-              </label>
-              <input
-                type="text"
-                placeholder="Описание правила"
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-            <button
-              onClick={handleAddIP}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
-            >
-              Добавить
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Rules Table */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -232,16 +328,40 @@ export function IPAccess() {
                 </td>
                 <td className="px-6 py-4">
                   <button
-                    onClick={() => removeIPRule(rule.id)}
+                    onClick={() => handleDeleteRule(rule.id)}
                     className="text-sm text-destructive hover:underline"
                   >
-                    Удалить
+                    Delete
                   </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {ipRules.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            IP rules не найдены
+          </div>
+        )}
+      </div>
+
+      {/* Matched Rules Stats */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h3 className="text-lg mb-4 text-foreground">Статистика правил</h3>
+        {Object.keys(ipAccessStats?.matchedRulesStatistics || {}).length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Совпадений по правилам пока нет
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(ipAccessStats?.matchedRulesStatistics || {}).map(([ruleId, count]) => (
+              <div key={ruleId} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                <div className="text-sm text-foreground font-mono">{ruleId}</div>
+                <div className="text-sm text-muted-foreground">{count.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

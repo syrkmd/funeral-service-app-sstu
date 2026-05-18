@@ -1,44 +1,79 @@
 import { useEffect, useState } from "react";
+import { fetchDashboardRateLimits, sumValues, type DashboardRateLimitsResponse } from "../../../api/metrics.api";
 import { useProxyStore } from "../../store/proxyStore";
 
 export function RateLimiting() {
   const rateLimitSettings = useProxyStore((state) => state.rateLimitSettings);
   const loadConfig = useProxyStore((state) => state.loadConfig);
   const updateRateLimits = useProxyStore((state) => state.updateRateLimits);
+  const [liveRateLimits, setLiveRateLimits] = useState<DashboardRateLimitsResponse | null>(null);
 
   const [editMode, setEditMode] = useState(false);
   const [rpsLimit, setRpsLimit] = useState(rateLimitSettings.rpsLimit);
   const [rpmLimit, setRpmLimit] = useState(rateLimitSettings.rpmLimit);
   const [saveMessage, setSaveMessage] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
   useEffect(() => {
+    const loadRateLimits = async () => {
+      try {
+        const data = await fetchDashboardRateLimits();
+        setLiveRateLimits(data);
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "Failed to load rate limits");
+      }
+    };
+
+    loadRateLimits();
+    const interval = setInterval(loadRateLimits, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     setRpsLimit(rateLimitSettings.rpsLimit);
     setRpmLimit(rateLimitSettings.rpmLimit);
   }, [rateLimitSettings.rpmLimit, rateLimitSettings.rpsLimit]);
 
-  // Mock current usage
+  const primaryRule = liveRateLimits?.activeRateLimitRules[0];
+  const effectiveSettings = {
+    rpsLimit: primaryRule?.rps || rateLimitSettings.rpsLimit,
+    rpmLimit: primaryRule?.rpm || rateLimitSettings.rpmLimit,
+  };
+
+  const getBucketUsage = (type: string, limit: number) => {
+    const buckets = (liveRateLimits?.currentBucketUsage || []).filter((bucket) => bucket.type === type);
+    if (!buckets.length || limit <= 0) return 0;
+
+    const lowestTokensRemaining = Math.min(...buckets.map((bucket) => bucket.tokensRemaining));
+    return Math.max(0, Math.round(limit - lowestTokensRemaining));
+  };
+
   const limits = {
     rps: {
-      limit: rateLimitSettings.rpsLimit,
-      current: 45,
-      percentage: (45 / rateLimitSettings.rpsLimit) * 100,
+      limit: effectiveSettings.rpsLimit,
+      current: getBucketUsage("rps", effectiveSettings.rpsLimit),
+      percentage: effectiveSettings.rpsLimit > 0 ? (getBucketUsage("rps", effectiveSettings.rpsLimit) / effectiveSettings.rpsLimit) * 100 : 0,
     },
     rpm: {
-      limit: rateLimitSettings.rpmLimit,
-      current: 2341,
-      percentage: (2341 / rateLimitSettings.rpmLimit) * 100,
+      limit: effectiveSettings.rpmLimit,
+      current: getBucketUsage("rpm", effectiveSettings.rpmLimit),
+      percentage: effectiveSettings.rpmLimit > 0 ? (getBucketUsage("rpm", effectiveSettings.rpmLimit) / effectiveSettings.rpmLimit) * 100 : 0,
     },
   };
 
-  const violators = [
-    { ip: "192.168.1.50", requests: 150, time: "14:30:45" },
-    { ip: "10.0.0.25", requests: 132, time: "14:28:12" },
-    { ip: "172.16.0.8", requests: 118, time: "14:25:33" },
-  ];
+  const violators = (liveRateLimits?.blockedIps || []).map((item) => ({
+        ip: item.ip,
+        requests: item.count,
+        time: "Live",
+      }));
+
+  const violationTotal = sumValues(liveRateLimits?.violations);
 
   const handleSave = async () => {
     await updateRateLimits({
@@ -58,17 +93,18 @@ export function RateLimiting() {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="bg-card border border-border rounded-lg p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
+
       {/* Settings */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg text-foreground">Настройки лимитов</h3>
           {!editMode ? (
-            <button
-              onClick={() => setEditMode(true)}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-sm"
-            >
-              Изменить
-            </button>
+            <span className="text-sm text-muted-foreground">Read-only monitoring</span>
           ) : (
             <div className="flex gap-2">
               <button
@@ -106,7 +142,7 @@ export function RateLimiting() {
               className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Текущий лимит: {rateLimitSettings.rpsLimit} RPS
+              Текущий лимит: {effectiveSettings.rpsLimit} RPS
             </p>
           </div>
           <div>
@@ -121,7 +157,7 @@ export function RateLimiting() {
               className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Текущий лимит: {rateLimitSettings.rpmLimit} RPM
+              Текущий лимит: {effectiveSettings.rpmLimit} RPM
             </p>
           </div>
         </div>
@@ -178,6 +214,43 @@ export function RateLimiting() {
         </div>
       </div>
 
+      {/* Active Rules */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg text-foreground">Активные правила</h3>
+          <span className="text-sm text-muted-foreground">
+            Нарушений: {violationTotal.toLocaleString()}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {(liveRateLimits?.activeRateLimitRules || []).map((rule) => (
+            <div key={rule.id} className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border border-border rounded-lg text-sm">
+              <div>
+                <div className="text-muted-foreground">Rule</div>
+                <div className="text-foreground font-mono">{rule.id}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Scope</div>
+                <div className="text-foreground">{rule.scope}: {rule.value}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">RPS / RPM</div>
+                <div className="text-foreground">{rule.rps} / {rule.rpm}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Connections</div>
+                <div className="text-foreground">{rule.maxConnections}</div>
+              </div>
+            </div>
+          ))}
+          {!liveRateLimits?.activeRateLimitRules.length && (
+            <div className="text-center py-8 text-muted-foreground">
+              Активные правила не найдены
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Violators */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h3 className="text-lg mb-4 text-foreground">Нарушители лимитов</h3>
@@ -204,9 +277,6 @@ export function RateLimiting() {
                     Превышение лимита
                   </div>
                 </div>
-                <button className="px-4 py-2 text-sm bg-destructive/10 text-destructive border border-destructive/40 rounded-lg hover:bg-destructive/20 transition-colors">
-                  Заблокировать
-                </button>
               </div>
             </div>
           ))}

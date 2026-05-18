@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ProxyDashboardMetrics } from '../../api/metrics.api';
 
 export type RPSDataPoint = {
   time: string;
@@ -13,6 +14,12 @@ type MetricsStore = {
   ordersToday: number;
   avgLatency: number;
   traffic: number;
+  cacheHits: number;
+  cacheMisses: number;
+  cacheStores: number;
+  rateLimitViolations: number;
+  blockedRequests: number;
+  upstreamStatus: string;
 
   // Actions
   addRPSDataPoint: (dataPoint: RPSDataPoint) => void;
@@ -20,16 +27,23 @@ type MetricsStore = {
   incrementErrors: (count?: number) => void;
   updateActiveClients: (count: number) => void;
   updateMetrics: (metrics: Partial<MetricsStore>) => void;
+  updateProxyMetrics: (metrics: ProxyDashboardMetrics) => void;
 };
 
 export const useMetricsStore = create<MetricsStore>()((set) => ({
-      rpsData: generateInitialRPSData(),
-      totalRequests: 45231,
-      errors: 23,
-      activeClients: 1284,
-      ordersToday: 16,
-      avgLatency: 24,
-      traffic: 1.2,
+      rpsData: [],
+      totalRequests: 0,
+      errors: 0,
+      activeClients: 0,
+      ordersToday: 0,
+      avgLatency: 0,
+      traffic: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      cacheStores: 0,
+      rateLimitViolations: 0,
+      blockedRequests: 0,
+      upstreamStatus: "unknown",
 
       addRPSDataPoint: (dataPoint) =>
         set((state) => ({
@@ -54,20 +68,10 @@ export const useMetricsStore = create<MetricsStore>()((set) => ({
           ...state,
           ...metrics,
         })),
+
+      updateProxyMetrics: (metrics) =>
+        set((state) => ({
+          ...state,
+          ...metrics,
+        })),
 }));
-
-// Helper function to generate initial RPS data
-function generateInitialRPSData(): RPSDataPoint[] {
-  const now = new Date();
-  const data: RPSDataPoint[] = [];
-
-  for (let i = 11; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * 5000); // 5 seconds apart
-    data.push({
-      time: time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      value: Math.floor(Math.random() * 40) + 30, // Random value between 30-70
-    });
-  }
-
-  return data;
-}
