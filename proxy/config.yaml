@@ -6,7 +6,7 @@ server:
   shutdown_timeout: 10s
 
 proxy:
-  upstream_url: "https://httpbin.org"
+  upstream_url: "http://host.docker.internal:8080"
   flush_interval: 100ms
 
 access:
