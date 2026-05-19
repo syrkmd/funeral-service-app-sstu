@@ -16,9 +16,6 @@ public class ServiceCategory {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "slug")
-    private String slug;
-
     @Column(name = "sort_order")
     private Integer sortOrder;
 
