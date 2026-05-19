@@ -18,7 +18,7 @@ public class OrderMapper {
         order.setPaid(request.getIsPaid());
 
         order.setClientName(request.getClient().getName());
-        order.setClientPhone(request.getPhone());
+        order.setClientPhone(request.getClient().getPhone());
         order.setClientEmail(request.getClient().getEmail());
 
         order.setDeceasedName(request.getDeceased().getName());
@@ -47,6 +47,7 @@ public class OrderMapper {
         client.setName(order.getClientName());
         client.setPhone(order.getClientPhone());
         client.setEmail(order.getClientEmail());
+        response.setClient(client);
 
         deceased.setName(order.getDeceasedName());
         deceased.setDateOfBirth(order.getDeceasedDateOfBirth());

@@ -4,6 +4,7 @@ import com.funeral.funeralService.dto.*;
 import com.funeral.funeralService.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/orders")
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService service;
@@ -50,9 +51,8 @@ public class OrderController {
     }
 
     @DeleteMapping("/{id}/documents/{documentId}")
-    public ResponseEntity<Void> removeDocument(@PathVariable String id, @PathVariable Long documentId) {
-        service.removeDocument(id, documentId);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<OrderResponse> removeDocument(@PathVariable String id, @PathVariable Long documentId) {
+        return ResponseEntity.ok(service.removeDocument(id, documentId));
     }
 
 }
