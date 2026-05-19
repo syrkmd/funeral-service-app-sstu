@@ -61,7 +61,6 @@ type FormErrors = {
 };
 
 export function OrderForm() {
-  const navigate = useNavigate();
   const createOrder = useOrdersStore((state) => state.createOrder);
   const [currentStep, setCurrentStep] = useState(1);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -111,7 +110,6 @@ export function OrderForm() {
   };
 
   const removeService = (id: string) => {
-    // Нельзя удалить последнюю услугу
     if (formData.selectedServices.length <= 1) {
       return;
     }
@@ -146,8 +144,11 @@ export function OrderForm() {
       }
       if (!formData.clientPhone.trim()) {
         newErrors.clientPhone = "Обязательное поле";
-      } else if (!/^[\d\s\-\(\)\+]+$/.test(formData.clientPhone)) {
-        newErrors.clientPhone = "Некорректный номер телефона";
+      } else {
+        const normalizedPhone = normalizePhone(formData.clientPhone);
+        if (!/^\+?\d{11,15}$/.test(normalizedPhone)) {
+          newErrors.clientPhone = "Введите корректный номер телефона";
+        }
       }
       if (formData.clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.clientEmail)) {
         newErrors.clientEmail = "Некорректный email";
@@ -221,8 +222,6 @@ export function OrderForm() {
 
     const total = servicesTotal + productsTotal;
 
-    // Normalize phone for consistent matching across user account
-    // Removes spaces, dashes, parentheses: "+7 (999) 123-45-67" → "+79991234567"
     const normalizedPhone = normalizePhone(formData.clientPhone);
 
     const newOrderData = {

@@ -25,7 +25,6 @@ export function useOrderPolling() {
 
     // Start polling
     pollingRef.current = setInterval(async () => {
-      // Only poll if tab is visible
       if (document.visibilityState !== 'visible') {
         return;
       }
