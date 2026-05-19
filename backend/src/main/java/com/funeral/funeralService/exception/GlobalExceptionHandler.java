@@ -28,6 +28,12 @@ public class GlobalExceptionHandler {
         return new ApiError("INVALID_VERIFICATION_CODE", exception.getMessage());
     }
 
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    @ExceptionHandler(InvalidAdminCredentialsException.class)
+    public ApiError handleInvalidAdminCredentials(InvalidAdminCredentialsException exception) {
+        return new ApiError("INVALID_ADMIN_CREDENTIALS", exception.getMessage());
+    }
+
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ApiError handleValidation(MethodArgumentNotValidException exception) {
