@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  getCatalogCategories,
+  getCatalogProducts,
+  type CatalogProductDto,
+} from "../../api/catalog.api";
 
-const categories = ["Все", "Гробы", "Урны", "Цветы", "Памятные изделия"];
+const fallbackCategories = ["Все", "Гробы", "Урны", "Цветы", "Памятные изделия"];
 
-const products = [
+const fallbackProducts = [
   {
     id: 1,
     category: "Гробы",
@@ -89,8 +94,62 @@ const products = [
   }
 ];
 
+type CatalogProductView = {
+  id: number;
+  category: string;
+  title: string;
+  description: string;
+  price: string;
+  imageUrl?: string | null;
+};
+
+function formatPrice(price: number) {
+  return `${price.toLocaleString("ru-RU")} ₽`;
+}
+
+function toCatalogProductView(product: CatalogProductDto): CatalogProductView {
+  return {
+    id: product.id,
+    category: product.category?.name || "",
+    title: product.title,
+    description: product.description,
+    price: formatPrice(product.price),
+    imageUrl: product.imageUrl,
+  };
+}
+
 export function Catalog() {
   const [selectedCategory, setSelectedCategory] = useState("Все");
+  const [categories, setCategories] = useState(fallbackCategories);
+  const [products, setProducts] = useState<CatalogProductView[]>(fallbackProducts);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCatalog() {
+      try {
+        const [productsResponse, categoriesResponse] = await Promise.all([
+          getCatalogProducts(),
+          getCatalogCategories(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProducts(productsResponse.map(toCatalogProductView));
+        setCategories(["Все", ...categoriesResponse.map((category) => category.name)]);
+      } catch (error) {
+        console.error("[Catalog] Failed to load catalog from backend", error);
+      }
+    }
+
+    loadCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredProducts =
     selectedCategory === "Все"
@@ -130,9 +189,17 @@ export function Catalog() {
             key={product.id}
             className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
-            <div className="bg-muted h-48 flex items-center justify-center">
-              <span className="text-muted-foreground">{product.title}</span>
-            </div>
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.title}
+                className="w-full h-48 object-cover bg-muted"
+              />
+            ) : (
+              <div className="bg-muted h-48 flex items-center justify-center">
+                <span className="text-muted-foreground">{product.title}</span>
+              </div>
+            )}
             <div className="p-6">
               <div className="text-xs text-muted-foreground mb-2">
                 {product.category}

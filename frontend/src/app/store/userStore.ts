@@ -55,6 +55,8 @@ export const useUserStore = create<UserStore>()((set) => ({
       });
       return session.isAuthenticated;
     } catch (error) {
+      console.error("[Account] Verification failed", error);
+
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to verify account",

@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { proxyApiClient } from "./client";
 import { fetchDashboardRateLimits, type DashboardIPRule } from "./metrics.api";
 import type { IPAccessRule, IPAccessType, RateLimitSettings } from "../app/store/proxyStore";
 
@@ -51,7 +51,7 @@ function mapBackendIPRule(rule: DashboardIPRule): IPAccessRule {
 const realProxyApi: ProxyApi = {
   async getConfig() {
     const [ipRulesResponse, rateLimits] = await Promise.all([
-      apiClient.get<DashboardIPRule[]>("/api/ip_access/lists"),
+      proxyApiClient.get<DashboardIPRule[]>("/api/ip_access/lists"),
       fetchDashboardRateLimits(),
     ]);
 
@@ -68,7 +68,7 @@ const realProxyApi: ProxyApi = {
   },
 
   async addIPRule(rule) {
-    const response = await apiClient.post<DashboardIPRule>("/api/ip_access/lists", {
+    const response = await proxyApiClient.post<DashboardIPRule>("/api/ip_access/lists", {
       type: mapFrontendRuleType(rule.type),
       value: rule.ip,
       description: rule.note,
@@ -77,7 +77,7 @@ const realProxyApi: ProxyApi = {
   },
 
   async removeIPRule(id) {
-    await apiClient.delete(`/api/ip_access/lists/${id}`);
+    await proxyApiClient.delete(`/api/ip_access/lists/${id}`);
   },
 
   async setDefaultPolicy(policy) {
@@ -99,7 +99,7 @@ export const removeIPRule = proxyApi.removeIPRule;
 export const setDefaultPolicy = proxyApi.setDefaultPolicy;
 export const updateRateLimits = proxyApi.updateRateLimits;
 export async function checkIPAccess(ip: string): Promise<IPAccessDecision> {
-  const response = await apiClient.get("/api/ip_access/check", {
+  const response = await proxyApiClient.get("/api/ip_access/check", {
     params: { ip },
   });
   const data = response.data || {};

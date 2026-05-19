@@ -21,10 +21,10 @@ export default defineConfig({
   assetsInclude: ['**/*.svg', '**/*.csv'],
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/metrics': 'http://localhost:8080',
-      '/swagger': 'http://localhost:8080',
-      '/healthz': 'http://localhost:8080',
+      '/api': 'http://localhost:8090',
+      '/metrics': 'http://localhost:8090',
+      '/swagger': 'http://localhost:8090',
+      '/healthz': 'http://localhost:8090',
     },
   },
 })

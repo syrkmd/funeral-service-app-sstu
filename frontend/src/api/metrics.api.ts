@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { proxyApiClient } from "./client";
 
 type RawRecord = Record<string, any>;
 
@@ -343,32 +343,32 @@ export async function fetchMetrics(): Promise<ProxyDashboardMetrics> {
 }
 
 export async function fetchRawMetrics(): Promise<MetricsResponse> {
-  const response = await apiClient.get("/api/metrics");
+  const response = await proxyApiClient.get("/api/metrics");
   return normalizeMetrics(response.data);
 }
 
 export async function fetchDashboardOverview(): Promise<DashboardOverviewResponse> {
-  const response = await apiClient.get("/api/dashboard/overview");
+  const response = await proxyApiClient.get("/api/dashboard/overview");
   return normalizeOverview(response.data);
 }
 
 export async function fetchDashboardClients(): Promise<DashboardClientsResponse> {
-  const response = await apiClient.get("/api/dashboard/clients");
+  const response = await proxyApiClient.get("/api/dashboard/clients");
   return normalizeClients(response.data);
 }
 
 export async function fetchDashboardUpstream(): Promise<DashboardUpstreamResponse> {
-  const response = await apiClient.get("/api/dashboard/upstream");
+  const response = await proxyApiClient.get("/api/dashboard/upstream");
   return normalizeUpstream(response.data);
 }
 
 export async function fetchDashboardRateLimits(): Promise<DashboardRateLimitsResponse> {
-  const response = await apiClient.get("/api/dashboard/rate_limits");
+  const response = await proxyApiClient.get("/api/dashboard/rate_limits");
   return normalizeRateLimits(response.data);
 }
 
 export async function fetchDashboardIPAccess(): Promise<DashboardIPAccessResponse> {
-  const response = await apiClient.get("/api/dashboard/ip_access");
+  const response = await proxyApiClient.get("/api/dashboard/ip_access");
   return normalizeIPAccess(response.data);
 }
 
