@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { normalizePhone } from "../../utils/phoneUtils";
 
 export function AccountLogin() {
   const navigate = useNavigate();
@@ -15,13 +16,13 @@ export function AccountLogin() {
       return;
     }
 
-    if (!/^[\d\s\-\(\)\+]+$/.test(phone)) {
-      setError("Некорректный номер телефона");
+    const normalizedPhone = normalizePhone(phone);
+    if (!/^\+?\d{11,15}$/.test(normalizedPhone)) {
+      setError("Введите корректный номер телефона");
       return;
     }
 
-    // В реальном приложении здесь был бы API-запрос
-    navigate("/account/verify", { state: { phone } });
+    navigate("/account/verify", { state: { phone: normalizedPhone } });
   };
 
   return (
