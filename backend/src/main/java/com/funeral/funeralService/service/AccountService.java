@@ -1,7 +1,7 @@
 package com.funeral.funeralService.service;
 
-import com.funeral.funeralService.dto.AccountSessionResponse;
-import com.funeral.funeralService.dto.AccountVerifyRequest;
+import com.funeral.funeralService.dto.account.response.AccountSessionResponse;
+import com.funeral.funeralService.dto.account.request.AccountVerifyRequest;
 import com.funeral.funeralService.exception.InvalidVerificationCodeException;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Service;

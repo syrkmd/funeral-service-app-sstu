@@ -1,4 +1,4 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.order.common;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

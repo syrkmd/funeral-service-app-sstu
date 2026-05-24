@@ -1,6 +1,12 @@
 package com.funeral.funeralService.mapper;
 
-import com.funeral.funeralService.dto.*;
+import com.funeral.funeralService.dto.order.common.ClientDto;
+import com.funeral.funeralService.dto.order.common.DeceasedDto;
+import com.funeral.funeralService.dto.order.common.OrderItemDto;
+import com.funeral.funeralService.dto.order.request.CreateOrderRequest;
+import com.funeral.funeralService.dto.order.request.OrderDocumentRequest;
+import com.funeral.funeralService.dto.order.response.OrderDocumentDto;
+import com.funeral.funeralService.dto.order.response.OrderResponse;
 import com.funeral.funeralService.entity.*;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +31,16 @@ public class OrderMapper {
         order.setDeceasedDateOfBirth(request.getDeceased().getDateOfBirth());
         order.setDeceasedDateOfDeath(request.getDeceased().getDateOfDeath());
 
+        order.setServiceDate(request.getServiceDate());
+        order.setServiceTime(request.getServiceTime());
+        order.setServiceAddress(request.getServiceAddress());
+        order.setCemetery(request.getCemetery());
+        order.setCemeteryNotes(request.getCemeteryNotes());
+        order.setCemeteryPlotId(request.getCemeteryPlotId());
+        order.setCemeteryPlotLabel(request.getCemeteryPlotLabel());
+
         order.setServices(toServiceItems(request.getServices(), order));
-        order.setProducts(toProductsItem(request.getProducts(), order));
+        order.setProducts(toProductItems(request.getProducts(), order));
         order.setDocuments(toDocumentItems(request.getDocuments(), order));
 
         return order;
@@ -53,6 +67,14 @@ public class OrderMapper {
         deceased.setDateOfBirth(order.getDeceasedDateOfBirth());
         deceased.setDateOfDeath(order.getDeceasedDateOfDeath());
         response.setDeceased(deceased);
+
+        response.setServiceDate(order.getServiceDate());
+        response.setServiceTime(order.getServiceTime());
+        response.setServiceAddress(order.getServiceAddress());
+        response.setCemetery(order.getCemetery());
+        response.setCemeteryNotes(order.getCemeteryNotes());
+        response.setCemeteryPlotId(order.getCemeteryPlotId());
+        response.setCemeteryPlotLabel(order.getCemeteryPlotLabel());
 
         response.setServices(
                 order.getServices().stream()
@@ -97,7 +119,7 @@ public class OrderMapper {
         return OrderStatus.valueOf(status.toUpperCase());
     }
 
-    private List<OrderServiceItem> toServiceItems(List<OrderItemDto> items, Order order) {
+    public List<OrderServiceItem> toServiceItems(List<OrderItemDto> items, Order order) {
         return items.stream()
                 .map(item -> {
                     OrderServiceItem entity = new OrderServiceItem();
@@ -109,7 +131,7 @@ public class OrderMapper {
                 .toList();
     }
 
-    private List<OrderProductItem> toProductsItem(List<OrderItemDto> items, Order order) {
+    public List<OrderProductItem> toProductItems(List<OrderItemDto> items, Order order) {
         return items.stream()
                 .map(item -> {
                     OrderProductItem entity = new OrderProductItem();

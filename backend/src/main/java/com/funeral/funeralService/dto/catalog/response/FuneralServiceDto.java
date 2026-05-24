@@ -1,4 +1,4 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.catalog.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -18,4 +18,8 @@ public class FuneralServiceDto {
     private BigDecimal price;
 
     private ServiceCategoryDto category;
+
+    private Boolean active;
+
+    private Integer sortOrder;
 }

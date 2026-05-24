@@ -1,5 +1,8 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.order.response;
 
+import com.funeral.funeralService.dto.order.common.ClientDto;
+import com.funeral.funeralService.dto.order.common.DeceasedDto;
+import com.funeral.funeralService.dto.order.common.OrderItemDto;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -33,6 +36,20 @@ public class OrderResponse {
     private ClientDto client;
 
     private DeceasedDto deceased;
+
+    private LocalDate serviceDate;
+
+    private String serviceTime;
+
+    private String serviceAddress;
+
+    private String cemetery;
+
+    private String cemeteryNotes;
+
+    private Long cemeteryPlotId;
+
+    private String cemeteryPlotLabel;
 
     private List<OrderItemDto> services = new ArrayList<>();
 

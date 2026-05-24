@@ -47,6 +47,27 @@ public class Order {
     @Column(name = "deceased_date_of_death", nullable = false)
     private LocalDate deceasedDateOfDeath;
 
+    @Column(name = "service_date")
+    private LocalDate serviceDate;
+
+    @Column(name = "service_time")
+    private String serviceTime;
+
+    @Column(name = "service_address")
+    private String serviceAddress;
+
+    @Column(name = "cemetery")
+    private String cemetery;
+
+    @Column(name = "cemetery_notes", length = 1000)
+    private String cemeteryNotes;
+
+    @Column(name = "cemetery_plot_id")
+    private Long cemeteryPlotId;
+
+    @Column(name = "cemetery_plot_label")
+    private String cemeteryPlotLabel;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderServiceItem> services;
 

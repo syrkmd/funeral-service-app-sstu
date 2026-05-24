@@ -11,4 +11,6 @@ import java.util.List;
 public interface FuneralServiceRepository extends JpaRepository<FuneralService, Long> {
 
     List<FuneralService> findByActiveTrueOrderBySortOrderAsc();
+
+    List<FuneralService> findAllByOrderBySortOrderAsc();
 }

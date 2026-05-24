@@ -1,4 +1,4 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.account.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

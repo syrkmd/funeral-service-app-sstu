@@ -1,4 +1,4 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.catalog.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,4 +20,8 @@ public class CatalogProductDto {
     private String imageUrl;
 
     private ProductCategoryDto category;
+
+    private Boolean active;
+
+    private Integer sortOrder;
 }

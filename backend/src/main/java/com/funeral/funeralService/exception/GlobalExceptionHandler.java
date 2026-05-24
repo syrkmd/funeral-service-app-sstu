@@ -22,6 +22,30 @@ public class GlobalExceptionHandler {
         return new ApiError("ORDER_DOCUMENT_NOT_FOUND", exception.getMessage());
     }
 
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(CatalogProductNotFoundException.class)
+    public ApiError handleCatalogProductNotFound(CatalogProductNotFoundException exception) {
+        return new ApiError("CATALOG_PRODUCT_NOT_FOUND", exception.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(ProductCategoryNotFoundException.class)
+    public ApiError handleProductCategoryNotFound(ProductCategoryNotFoundException exception) {
+        return new ApiError("PRODUCT_CATEGORY_NOT_FOUND", exception.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(FuneralServiceNotFoundException.class)
+    public ApiError handleFuneralServiceNotFound(FuneralServiceNotFoundException exception) {
+        return new ApiError("FUNERAL_SERVICE_NOT_FOUND", exception.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(ServiceCategoryNotFoundException.class)
+    public ApiError handleServiceCategoryNotFound(ServiceCategoryNotFoundException exception) {
+        return new ApiError("SERVICE_CATEGORY_NOT_FOUND", exception.getMessage());
+    }
+
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(InvalidVerificationCodeException.class)
     public ApiError handleInvalidVerificationCode(InvalidVerificationCodeException exception) {

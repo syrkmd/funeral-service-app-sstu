@@ -1,7 +1,7 @@
 package com.funeral.funeralService.service;
 
-import com.funeral.funeralService.dto.AdminLoginRequest;
-import com.funeral.funeralService.dto.AdminSessionResponse;
+import com.funeral.funeralService.dto.admin.request.AdminLoginRequest;
+import com.funeral.funeralService.dto.admin.response.AdminSessionResponse;
 import com.funeral.funeralService.exception.InvalidAdminCredentialsException;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Service;

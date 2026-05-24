@@ -1,5 +1,8 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.order.request;
 
+import com.funeral.funeralService.dto.order.common.ClientDto;
+import com.funeral.funeralService.dto.order.common.DeceasedDto;
+import com.funeral.funeralService.dto.order.common.OrderItemDto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -39,6 +42,20 @@ public class CreateOrderRequest {
     @Valid
     @NotNull
     private DeceasedDto deceased;
+
+    private LocalDate serviceDate;
+
+    private String serviceTime;
+
+    private String serviceAddress;
+
+    private String cemetery;
+
+    private String cemeteryNotes;
+
+    private Long cemeteryPlotId;
+
+    private String cemeteryPlotLabel;
 
     @Valid
     @Size(min = 1)

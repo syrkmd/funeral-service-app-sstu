@@ -1,4 +1,4 @@
-package com.funeral.funeralService.dto;
+package com.funeral.funeralService.dto.account.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
