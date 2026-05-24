@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.funeral.funeralService.util.PatchUtils.applyIfPresent;
+
 @Service
 @RequiredArgsConstructor
 public class CatalogService {
@@ -65,27 +67,13 @@ public class CatalogService {
     public CatalogProductDto updateProduct(Long id, UpdateCatalogProductRequest request) {
         CatalogProduct product = findProduct(id);
 
-        if (request.getTitle() != null) {
-            product.setTitle(request.getTitle());
-        }
-        if (request.getDescription() != null) {
-            product.setDescription(request.getDescription());
-        }
-        if (request.getPrice() != null) {
-            product.setPrice(request.getPrice());
-        }
-        if (request.getImageUrl() != null) {
-            product.setImageUrl(request.getImageUrl());
-        }
-        if (request.getCategoryId() != null) {
-            product.setCategory(findCategory(request.getCategoryId()));
-        }
-        if (request.getActive() != null) {
-            product.setActive(request.getActive());
-        }
-        if (request.getSortOrder() != null) {
-            product.setSortOrder(request.getSortOrder());
-        }
+        applyIfPresent(request.getTitle(), product::setTitle);
+        applyIfPresent(request.getDescription(), product::setDescription);
+        applyIfPresent(request.getPrice(), product::setPrice);
+        applyIfPresent(request.getImageUrl(), product::setImageUrl);
+        applyIfPresent(request.getCategoryId(), categoryId -> product.setCategory(findCategory(categoryId)));
+        applyIfPresent(request.getActive(), product::setActive);
+        applyIfPresent(request.getSortOrder(), product::setSortOrder);
 
         return toProductDto(catalogProductRepository.save(product));
     }

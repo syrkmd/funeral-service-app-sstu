@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.funeral.funeralService.util.PatchUtils.applyIfPresent;
+
 @Service
 @RequiredArgsConstructor
 public class FuneralServiceCatalogService {
@@ -57,24 +59,12 @@ public class FuneralServiceCatalogService {
     public FuneralServiceDto updateService(Long id, UpdateFuneralServiceRequest request) {
         FuneralService service = findService(id);
 
-        if (request.getTitle() != null) {
-            service.setTitle(request.getTitle());
-        }
-        if (request.getDescription() != null) {
-            service.setDescription(request.getDescription());
-        }
-        if (request.getPrice() != null) {
-            service.setPrice(request.getPrice());
-        }
-        if (request.getCategoryId() != null) {
-            service.setCategory(findCategory(request.getCategoryId()));
-        }
-        if (request.getActive() != null) {
-            service.setActive(request.getActive());
-        }
-        if (request.getSortOrder() != null) {
-            service.setSortOrder(request.getSortOrder());
-        }
+        applyIfPresent(request.getTitle(), service::setTitle);
+        applyIfPresent(request.getDescription(), service::setDescription);
+        applyIfPresent(request.getPrice(), service::setPrice);
+        applyIfPresent(request.getCategoryId(), categoryId -> service.setCategory(findCategory(categoryId)));
+        applyIfPresent(request.getActive(), service::setActive);
+        applyIfPresent(request.getSortOrder(), service::setSortOrder);
 
         return toServiceDto(funeralServiceRepository.save(service));
     }
