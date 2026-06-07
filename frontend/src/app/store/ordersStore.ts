@@ -1,12 +1,24 @@
 import { create } from "zustand";
 import {
   addDocument as addOrderDocument,
+  applyDiscount as applyOrderDiscount,
   createOrder as createOrderRequest,
   getOrders,
+  payOrder as payOrderRequest,
+  replaceProducts as replaceOrderProducts,
+  replaceServices as replaceOrderServices,
   removeDocument as removeOrderDocument,
+  updateCeremony as updateOrderCeremonyRequest,
+  updateClient as updateOrderClientRequest,
+  updateDeceased as updateOrderDeceasedRequest,
+  updateOrderDate as updateOrderDateRequest,
   updateOrderStatus as updateOrderStatusRequest,
   updatePayment,
   type CreateOrderData,
+  type PayOrderData,
+  type UpdateOrderCeremonyData,
+  type UpdateOrderClientData,
+  type UpdateOrderDeceasedData,
 } from "../../api/orders.api";
 
 export type OrderStatus = "processing" | "confirmed" | "completed" | "cancelled";
@@ -50,6 +62,13 @@ export type Order = {
     dateOfBirth: string;
     dateOfDeath: string;
   };
+  serviceDate?: string | null;
+  serviceTime?: string | null;
+  serviceAddress?: string | null;
+  cemetery?: string | null;
+  cemeteryNotes?: string | null;
+  cemeteryPlotId?: number | null;
+  cemeteryPlotCode?: string | null;
   services: Service[];
   products: Product[];
   documents: Document[];
@@ -65,6 +84,14 @@ type OrdersStore = {
   createOrder: (data: CreateOrderData) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   updateOrderPayment: (id: string, isPaid: boolean) => Promise<void>;
+  payOrder: (id: string, data: PayOrderData) => Promise<void>;
+  updateOrderClient: (id: string, data: UpdateOrderClientData) => Promise<void>;
+  updateOrderDeceased: (id: string, data: UpdateOrderDeceasedData) => Promise<void>;
+  updateOrderDate: (id: string, date: string) => Promise<void>;
+  updateOrderCeremony: (id: string, data: UpdateOrderCeremonyData) => Promise<void>;
+  replaceOrderServices: (id: string, serviceIds: number[]) => Promise<void>;
+  replaceOrderProducts: (id: string, productIds: number[]) => Promise<void>;
+  applyOrderDiscount: (id: string, discountAmount: number, reason?: string) => Promise<void>;
   addDocument: (orderId: string, document: Document) => Promise<void>;
   removeDocument: (orderId: string, documentId: number) => Promise<void>;
 };
@@ -125,6 +152,70 @@ export const useOrdersStore = create<OrdersStore>()((set, get) => ({
 
   updateOrderPayment: async (id, isPaid) => {
     const updatedOrder = await updatePayment(id, isPaid);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  payOrder: async (id, data) => {
+    const updatedOrder = await payOrderRequest(id, data);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  updateOrderClient: async (id, data) => {
+    const updatedOrder = await updateOrderClientRequest(id, data);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  updateOrderDeceased: async (id, data) => {
+    const updatedOrder = await updateOrderDeceasedRequest(id, data);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  updateOrderDate: async (id, date) => {
+    const updatedOrder = await updateOrderDateRequest(id, date);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  updateOrderCeremony: async (id, data) => {
+    const updatedOrder = await updateOrderCeremonyRequest(id, data);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  replaceOrderServices: async (id, serviceIds) => {
+    const updatedOrder = await replaceOrderServices(id, serviceIds);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  replaceOrderProducts: async (id, productIds) => {
+    const updatedOrder = await replaceOrderProducts(id, productIds);
+    set((state) => ({
+      orders: mergeOrders(state.orders, [updatedOrder]),
+      lastUpdate: new Date().toISOString(),
+    }));
+  },
+
+  applyOrderDiscount: async (id, discountAmount, reason) => {
+    const updatedOrder = await applyOrderDiscount(id, discountAmount, reason);
     set((state) => ({
       orders: mergeOrders(state.orders, [updatedOrder]),
       lastUpdate: new Date().toISOString(),

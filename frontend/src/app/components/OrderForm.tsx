@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import {
+  getCemeteryPlots,
+  getCemeterySections,
+  type CemeteryPlot,
+  type CemeterySection,
+} from "../../api/cemetery.api";
 import { useOrdersStore } from "../store/ordersStore";
 import { normalizePhone } from "../utils/phoneUtils";
 
@@ -24,14 +30,6 @@ const availableProducts = [
   { id: "guest-book", name: "Книга памяти", price: 7500 },
 ];
 
-const cemeteries = [
-  "Ваганьковское кладбище",
-  "Троекуровское кладбище",
-  "Хованское кладбище",
-  "Николо-Архангельское кладбище",
-  "Другое (указать)"
-];
-
 type FormData = {
   clientName: string;
   clientPhone: string;
@@ -48,8 +46,17 @@ type FormData = {
   cemetery: string;
   cemeteryOther: string;
   cemeteryNotes: string;
+  selectedSectionName: string;
+  selectedPlotId: number | null;
+  selectedPlotLabel: string;
   paymentMethod: string;
   comments: string;
+};
+
+type PaymentDetails = {
+  cardNumber: string;
+  expiryDate: string;
+  cvv: string;
 };
 
 type FormErrors = {
@@ -57,15 +64,29 @@ type FormErrors = {
   clientPhone?: string;
   clientEmail?: string;
   deceasedName?: string;
+  dateOfBirth?: string;
   dateOfDeath?: string;
+  serviceDate?: string;
+  cemeteryPlot?: string;
 };
+
+const PERSON_NAME_PATTERN = /^[\p{L}]+(?:[ '\-][\p{L}]+)*$/u;
 
 export function OrderForm() {
   const createOrder = useOrdersStore((state) => state.createOrder);
+  const payOrder = useOrdersStore((state) => state.payOrder);
   const [currentStep, setCurrentStep] = useState(1);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [paymentResult, setPaymentResult] = useState<"paid" | "deferred" | "failed" | null>(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [cemeterySections, setCemeterySections] = useState<CemeterySection[]>([]);
+  const [cemeteryPlots, setCemeteryPlots] = useState<CemeteryPlot[]>([]);
+  const [isLoadingPlots, setIsLoadingPlots] = useState(false);
+  const [plotsError, setPlotsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     clientName: "",
@@ -83,8 +104,16 @@ export function OrderForm() {
     cemetery: "",
     cemeteryOther: "",
     cemeteryNotes: "",
-    paymentMethod: "invoice",
+    selectedSectionName: "",
+    selectedPlotId: null,
+    selectedPlotLabel: "",
+    paymentMethod: "later",
     comments: "",
+  });
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>({
+    cardNumber: "",
+    expiryDate: "",
+    cvv: "",
   });
 
   const steps = [
@@ -96,9 +125,89 @@ export function OrderForm() {
     "Проверка"
   ];
 
+  useEffect(() => {
+    if (currentStep !== 5 || formData.serviceType !== "burial" || cemeterySections.length > 0) {
+      return;
+    }
+
+    getCemeterySections()
+      .then(setCemeterySections)
+      .catch(() => setPlotsError("Не удалось загрузить секции кладбища"));
+  }, [currentStep, formData.serviceType, cemeterySections.length]);
+
+  useEffect(() => {
+    if (
+      currentStep !== 5 ||
+      formData.serviceType !== "burial" ||
+      !formData.selectedSectionName
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingPlots(true);
+    setPlotsError(null);
+
+    getCemeteryPlots(formData.selectedSectionName)
+      .then((plots) => {
+        if (!cancelled) {
+          setCemeteryPlots(plots);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCemeteryPlots([]);
+          setPlotsError("Не удалось загрузить места захоронения");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingPlots(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, formData.serviceType, formData.selectedSectionName]);
+
+  useEffect(() => {
+    if (formData.serviceType === "burial" || formData.selectedPlotId === null) {
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      selectedSectionName: "",
+      selectedPlotId: null,
+      selectedPlotLabel: "",
+    }));
+  }, [formData.serviceType, formData.selectedPlotId]);
+
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const updatePaymentDetails = (field: keyof PaymentDetails, value: string) => {
+    setPaymentDetails(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCardNumberChange = (value: string) => {
+    updatePaymentDetails("cardNumber", value.replace(/\D/g, "").slice(0, 16));
+  };
+
+  const handleExpiryChange = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    updatePaymentDetails(
+      "expiryDate",
+      digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits,
+    );
+  };
+
+  const isCardDetailsValid =
+    /^\d{16}$/.test(paymentDetails.cardNumber) &&
+    /^(0[1-9]|1[0-2])\/\d{2}$/.test(paymentDetails.expiryDate) &&
+    /^\d{3}$/.test(paymentDetails.cvv);
 
   const toggleService = (id: string) => {
     setFormData(prev => ({
@@ -128,6 +237,29 @@ export function OrderForm() {
     }));
   };
 
+  const selectPlot = (plot: CemeteryPlot) => {
+    if (!plot.available) {
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      selectedPlotId: plot.id,
+      selectedPlotLabel: plot.label,
+    }));
+  };
+
+  const selectSection = (sectionName: string) => {
+    setCemeteryPlots([]);
+    setPlotsError(null);
+    setFormData(prev => ({
+      ...prev,
+      selectedSectionName: sectionName,
+      selectedPlotId: null,
+      selectedPlotLabel: "",
+    }));
+  };
+
   const removeProduct = (id: string) => {
     setFormData(prev => ({
       ...prev,
@@ -141,6 +273,8 @@ export function OrderForm() {
     if (step === 1) {
       if (!formData.clientName.trim()) {
         newErrors.clientName = "Обязательное поле";
+      } else if (!PERSON_NAME_PATTERN.test(formData.clientName.trim())) {
+        newErrors.clientName = "Имя может содержать только буквы, пробелы и дефисы";
       }
       if (!formData.clientPhone.trim()) {
         newErrors.clientPhone = "Обязательное поле";
@@ -158,9 +292,25 @@ export function OrderForm() {
     if (step === 2) {
       if (!formData.deceasedName.trim()) {
         newErrors.deceasedName = "Обязательное поле";
+      } else if (!PERSON_NAME_PATTERN.test(formData.deceasedName.trim())) {
+        newErrors.deceasedName = "Имя может содержать только буквы, пробелы и дефисы";
       }
       if (!formData.dateOfDeath) {
         newErrors.dateOfDeath = "Обязательное поле";
+      } else if (
+        formData.dateOfBirth &&
+        formData.dateOfDeath <= formData.dateOfBirth
+      ) {
+        newErrors.dateOfDeath = "Дата смерти должна быть позже даты рождения";
+      }
+    }
+
+    if (step === 5 && formData.serviceType === "burial") {
+      if (!formData.serviceDate) {
+        newErrors.serviceDate = "Укажите дату церемонии для бронирования участка";
+      }
+      if (formData.selectedPlotId === null) {
+        newErrors.cemeteryPlot = "Выберите свободное место захоронения";
       }
     }
 
@@ -209,31 +359,19 @@ export function OrderForm() {
   };
 
   const handleSubmit = async () => {
-    // Calculate total
-    const servicesTotal = formData.selectedServices.reduce((sum, serviceId) => {
-      const service = availableServices.find(s => s.id === serviceId);
-      return sum + (service?.price || 0);
-    }, 0);
+    if (isSubmitting) {
+      return;
+    }
 
-    const productsTotal = formData.selectedProducts.reduce((sum, productId) => {
-      const product = availableProducts.find(p => p.id === productId);
-      return sum + (product?.price || 0);
-    }, 0);
-
-    const total = servicesTotal + productsTotal;
-
-    const normalizedPhone = normalizePhone(formData.clientPhone);
+    setIsSubmitting(true);
+    setPaymentError("");
+    setSubmissionError("");
 
     const newOrderData = {
       date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      status: "processing" as const,
-      total,
-      phone: normalizedPhone,
-      isPaid: false,
       client: {
         name: formData.clientName,
-        phone: formData.clientPhone,
+        phone: normalizePhone(formData.clientPhone),
         email: formData.clientEmail,
       },
       deceased: {
@@ -241,6 +379,15 @@ export function OrderForm() {
         dateOfBirth: formData.dateOfBirth,
         dateOfDeath: formData.dateOfDeath,
       },
+      serviceDate: formData.serviceDate || null,
+      serviceTime: formData.serviceTime || null,
+      serviceAddress: formData.serviceAddress || null,
+      cemetery: formData.cemetery === "Другое (указать)"
+        ? formData.cemeteryOther
+        : formData.cemetery || null,
+      cemeteryNotes: formData.cemeteryNotes || null,
+      cemeteryPlotId: formData.selectedPlotId,
+      cemeteryPlotCode: formData.selectedPlotLabel || null,
       services: formData.selectedServices.map(serviceId => {
         const service = availableServices.find(s => s.id === serviceId);
         return {
@@ -258,27 +405,62 @@ export function OrderForm() {
       documents: [],
     };
 
-    const newOrder = await createOrder(newOrderData);
+    try {
+      const newOrder = await createOrder(newOrderData);
 
-    setOrderId(newOrder.id);
-    setCurrentStep(7);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (formData.paymentMethod === "credit") {
+        try {
+          await payOrder(newOrder.id, paymentDetails);
+          setPaymentResult("paid");
+        } catch (error) {
+          setPaymentResult("failed");
+          setPaymentError(
+            error instanceof Error
+              ? error.message
+              : "Заказ создан, но выполнить оплату не удалось",
+          );
+        }
+      } else {
+        setPaymentResult("deferred");
+      }
+
+      setOrderId(newOrder.id);
+      setCurrentStep(7);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось оформить заказ. Проверьте данные и повторите попытку.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.clientName.trim() && formData.clientPhone.trim() &&
+        return formData.clientName.trim() &&
+               PERSON_NAME_PATTERN.test(formData.clientName.trim()) &&
+               formData.clientPhone.trim() &&
                /^[\d\s\-\(\)\+]+$/.test(formData.clientPhone) &&
                (!formData.clientEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.clientEmail));
       case 2:
-        return formData.deceasedName.trim() && formData.dateOfDeath;
+        return formData.deceasedName.trim() &&
+               PERSON_NAME_PATTERN.test(formData.deceasedName.trim()) &&
+               formData.dateOfDeath &&
+               (!formData.dateOfBirth || formData.dateOfDeath > formData.dateOfBirth);
       case 3:
         return formData.selectedServices.length > 0;
       case 4:
         return true;
       case 5:
-        return true;
+        return (
+          (formData.serviceType !== "burial" ||
+            (Boolean(formData.serviceDate) && formData.selectedPlotId !== null)) &&
+          (formData.paymentMethod !== "credit" || isCardDetailsValid)
+        );
       case 6:
         return formData.selectedServices.length > 0;
       default:
@@ -287,8 +469,15 @@ export function OrderForm() {
   };
 
   if (orderId) {
-    return <OrderConfirmation orderId={orderId} onNewOrder={() => {
+    return <OrderConfirmation
+      orderId={orderId}
+      paymentResult={paymentResult}
+      paymentError={paymentError}
+      onNewOrder={() => {
       setOrderId(null);
+      setPaymentResult(null);
+      setPaymentError("");
+      setSubmissionError("");
       setCurrentStep(1);
       setFormData({
         clientName: "",
@@ -306,12 +495,22 @@ export function OrderForm() {
         cemetery: "",
         cemeteryOther: "",
         cemeteryNotes: "",
-        paymentMethod: "invoice",
+        selectedSectionName: "",
+        selectedPlotId: null,
+        selectedPlotLabel: "",
+        paymentMethod: "later",
         comments: "",
+      });
+      setPaymentDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvv: "",
       });
       setErrors({});
       setCompletedSteps(new Set());
-    }} />;
+      setCemeteryPlots([]);
+    }}
+    />;
   }
 
   return (
@@ -389,13 +588,33 @@ export function OrderForm() {
               />
             )}
             {currentStep === 5 && (
-              <Step5Details formData={formData} updateFormData={updateFormData} />
+              <Step5Details
+                formData={formData}
+                updateFormData={updateFormData}
+                sections={cemeterySections}
+                plots={cemeteryPlots}
+                selectedPlotId={formData.selectedPlotId}
+                isLoadingPlots={isLoadingPlots}
+                plotsError={plotsError}
+                selectSection={selectSection}
+                selectPlot={selectPlot}
+                paymentDetails={paymentDetails}
+                handleCardNumberChange={handleCardNumberChange}
+                handleExpiryChange={handleExpiryChange}
+                updatePaymentDetails={updatePaymentDetails}
+                errors={errors}
+              />
             )}
             {currentStep === 6 && (
               <Step6Review formData={formData} jumpToStep={jumpToStep} />
             )}
 
             {/* Navigation Buttons */}
+            {submissionError && (
+              <div className="mt-6 bg-destructive/10 border border-destructive/40 rounded-lg p-4 text-destructive">
+                {submissionError}
+              </div>
+            )}
             <div className="flex gap-4 mt-8">
               {currentStep > 1 && (
                 <button
@@ -416,10 +635,14 @@ export function OrderForm() {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={!canProceed()}
+                  disabled={!canProceed() || isSubmitting}
                   className="flex-1 bg-primary text-primary-foreground py-3 px-6 rounded-lg transition-opacity disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40 hover:opacity-90"
                 >
-                  Отправить заказ
+                  {isSubmitting
+                    ? "Оформление..."
+                    : formData.paymentMethod === "credit"
+                      ? "Оформить и оплатить"
+                      : "Отправить заказ"}
                 </button>
               )}
             </div>
@@ -456,6 +679,7 @@ function Step1ClientInfo({ formData, updateFormData, errors }: { formData: FormD
             required
             value={formData.clientName}
             onChange={(e) => updateFormData("clientName", e.target.value)}
+            pattern="[\p{L}]+(?:[ '\-][\p{L}]+)*"
             className={`w-full px-4 py-3 bg-input-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring ${
               errors.clientName ? "border-destructive" : "border-border"
             }`}
@@ -522,6 +746,7 @@ function Step2DeceasedInfo({ formData, updateFormData, errors }: { formData: For
             required
             value={formData.deceasedName}
             onChange={(e) => updateFormData("deceasedName", e.target.value)}
+            pattern="[\p{L}]+(?:[ '\-][\p{L}]+)*"
             className={`w-full px-4 py-3 bg-input-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring ${
               errors.deceasedName ? "border-destructive" : "border-border"
             }`}
@@ -540,8 +765,14 @@ function Step2DeceasedInfo({ formData, updateFormData, errors }: { formData: For
             type="date"
             value={formData.dateOfBirth}
             onChange={(e) => updateFormData("dateOfBirth", e.target.value)}
-            className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+            max={formData.dateOfDeath || undefined}
+            className={`w-full px-4 py-3 bg-input-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring ${
+              errors.dateOfBirth ? "border-destructive" : "border-border"
+            }`}
           />
+          {errors.dateOfBirth && (
+            <p className="text-destructive text-sm mt-1">{errors.dateOfBirth}</p>
+          )}
         </div>
         <div>
           <label htmlFor="date-of-death" className="block mb-2 text-foreground">
@@ -553,6 +784,7 @@ function Step2DeceasedInfo({ formData, updateFormData, errors }: { formData: For
             required
             value={formData.dateOfDeath}
             onChange={(e) => updateFormData("dateOfDeath", e.target.value)}
+            min={formData.dateOfBirth || undefined}
             className={`w-full px-4 py-3 bg-input-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring ${
               errors.dateOfDeath ? "border-destructive" : "border-border"
             }`}
@@ -654,7 +886,37 @@ function Step4Products({ selectedProducts, toggleProduct }: { selectedProducts: 
   );
 }
 
-function Step5Details({ formData, updateFormData }: { formData: FormData; updateFormData: (field: keyof FormData, value: any) => void }) {
+function Step5Details({
+  formData,
+  updateFormData,
+  sections,
+  plots,
+  selectedPlotId,
+  isLoadingPlots,
+  plotsError,
+  selectSection,
+  selectPlot,
+  paymentDetails,
+  handleCardNumberChange,
+  handleExpiryChange,
+  updatePaymentDetails,
+  errors,
+}: {
+  formData: FormData;
+  updateFormData: (field: keyof FormData, value: any) => void;
+  sections: CemeterySection[];
+  plots: CemeteryPlot[];
+  selectedPlotId: number | null;
+  isLoadingPlots: boolean;
+  plotsError: string | null;
+  selectSection: (sectionName: string) => void;
+  selectPlot: (plot: CemeteryPlot) => void;
+  paymentDetails: PaymentDetails;
+  handleCardNumberChange: (value: string) => void;
+  handleExpiryChange: (value: string) => void;
+  updatePaymentDetails: (field: keyof PaymentDetails, value: string) => void;
+  errors: FormErrors;
+}) {
   return (
     <div className="space-y-6">
       {/* Service Details */}
@@ -664,15 +926,25 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="service-date" className="block mb-2 text-foreground">
-                Предпочтительная дата
+                Предпочтительная дата{formData.serviceType === "burial" ? " *" : ""}
               </label>
               <input
                 id="service-date"
                 type="date"
                 value={formData.serviceDate}
                 onChange={(e) => updateFormData("serviceDate", e.target.value)}
-                className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full px-4 py-3 bg-input-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring ${
+                  errors.serviceDate ? "border-destructive" : "border-border"
+                }`}
               />
+              {errors.serviceDate && (
+                <p className="mt-2 text-sm text-destructive">{errors.serviceDate}</p>
+              )}
+              {formData.serviceType === "burial" && !errors.serviceDate && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Дата обязательна для бронирования места.
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="service-time" className="block mb-2 text-foreground">
@@ -722,42 +994,104 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
               <option value="cremation">Кремация</option>
             </select>
           </div>
-          <div>
-            <label htmlFor="cemetery" className="block mb-2 text-foreground">
-              Выберите кладбище
-            </label>
-            <select
-              id="cemetery"
-              value={formData.cemetery}
-              onChange={(e) => updateFormData("cemetery", e.target.value)}
-              className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Выберите кладбище...</option>
-              {cemeteries.map((cemetery) => (
-                <option key={cemetery} value={cemetery}>
-                  {cemetery}
-                </option>
-              ))}
-            </select>
-          </div>
-          {formData.cemetery === "Другое (указать)" && (
-            <div>
-              <label htmlFor="cemetery-other" className="block mb-2 text-foreground">
-                Название кладбища
-              </label>
-              <input
-                id="cemetery-other"
-                type="text"
-                value={formData.cemeteryOther}
-                onChange={(e) => updateFormData("cemeteryOther", e.target.value)}
-                className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Укажите название кладбища"
-              />
+
+          {formData.serviceType === "burial" && (
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="cemetery-section" className="block mb-2 text-foreground">
+                  Секция кладбища
+                </label>
+                <select
+                  id="cemetery-section"
+                  value={formData.selectedSectionName}
+                  onChange={(event) => selectSection(event.target.value)}
+                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Выберите секцию...</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.name}>
+                      {section.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-foreground">
+                  Место захоронения
+                </label>
+                {formData.selectedPlotLabel && (
+                  <span className="text-sm text-primary">
+                    Выбрано: {formData.selectedPlotLabel}
+                  </span>
+                )}
+              </div>
+
+              {!formData.selectedSectionName && !plotsError && (
+                <div className="bg-secondary/50 rounded-lg p-5 text-muted-foreground">
+                  Сначала выберите секцию кладбища.
+                </div>
+              )}
+
+              {isLoadingPlots && (
+                <div className="bg-secondary/50 rounded-lg p-5 text-muted-foreground">
+                  Загрузка доступных мест...
+                </div>
+              )}
+
+              {plotsError && (
+                <div className="bg-destructive/10 border border-destructive/40 rounded-lg p-4 text-destructive">
+                  {plotsError}
+                </div>
+              )}
+
+              {formData.selectedSectionName && !isLoadingPlots && !plotsError && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {plots.map((plot) => {
+                    const isSelected = selectedPlotId === plot.id;
+
+                    return (
+                      <button
+                        key={plot.id}
+                        type="button"
+                        disabled={!plot.available}
+                        onClick={() => selectPlot(plot)}
+                        className={`text-left border rounded-lg p-5 transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-secondary/30 hover:bg-secondary"
+                        } ${!plot.available ? "opacity-45 cursor-not-allowed hover:bg-secondary/30" : ""}`}
+                      >
+                        <div className="text-xl text-foreground mb-2">{plot.label}</div>
+                        <div className={`text-sm ${plot.available ? "text-primary" : "text-muted-foreground"}`}>
+                          {plot.available ? "Доступно" : "Недоступно"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {errors.cemeteryPlot && (
+                <p className="mt-3 text-sm text-destructive">{errors.cemeteryPlot}</p>
+              )}
+              {selectedPlotId === null && !errors.cemeteryPlot && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Выберите свободное место, чтобы продолжить оформление.
+                </p>
+              )}
             </div>
           )}
+
+          {formData.serviceType === "cremation" && (
+            <div className="bg-secondary/50 border border-border rounded-lg p-4 text-sm text-muted-foreground">
+              Для кремации место захоронения не резервируется. При необходимости укажите пожелания по урне, хранению или передаче праха в примечании.
+            </div>
+          )}
+
           <div>
             <label htmlFor="cemetery-notes" className="block mb-2 text-foreground">
-              Примечания
+              {formData.serviceType === "cremation" ? "Примечание по кремации" : "Примечания"}
             </label>
             <textarea
               id="cemetery-notes"
@@ -765,7 +1099,9 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
               value={formData.cemeteryNotes}
               onChange={(e) => updateFormData("cemeteryNotes", e.target.value)}
               className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-              placeholder="Номер участка, особые пожелания и т.д."
+              placeholder={formData.serviceType === "cremation"
+                ? "Например: пожелания по урне или передаче праха"
+                : "Особые пожелания по месту захоронения"}
             />
           </div>
         </div>
@@ -773,7 +1109,7 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
 
       {/* Payment Method */}
       <div className="bg-card border border-border rounded-lg p-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <h2 className="text-2xl text-foreground">Способ оплаты</h2>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Статус оплаты:</span>
@@ -783,25 +1119,9 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
           </div>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
-          Окончательный расчёт будет произведён после подтверждения
+          Выберите оплату сейчас или сохраните заказ и оплатите его позже в личном кабинете.
         </p>
         <div className="space-y-4">
-          <label className="flex items-center gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary transition-colors">
-            <input
-              type="radio"
-              name="payment"
-              value="invoice"
-              checked={formData.paymentMethod === "invoice"}
-              onChange={(e) => updateFormData("paymentMethod", e.target.value)}
-              className="w-5 h-5 accent-primary"
-            />
-            <div className="flex-1">
-              <div className="text-foreground">Счёт</div>
-              <div className="text-sm text-muted-foreground">
-                Оплата по счёту
-              </div>
-            </div>
-          </label>
           <label className="flex items-center gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary transition-colors">
             <input
               type="radio"
@@ -814,23 +1134,86 @@ function Step5Details({ formData, updateFormData }: { formData: FormData; update
             <div className="flex-1">
               <div className="text-foreground">Банковская карта</div>
               <div className="text-sm text-muted-foreground">
-                Оплата банковской картой
+                Оплатить заказ сразу после его создания
               </div>
             </div>
           </label>
+
+          {formData.paymentMethod === "credit" && (
+            <div className="border border-border rounded-lg p-5 space-y-4">
+              <div>
+                <label htmlFor="order-card-number" className="block text-sm text-foreground mb-2">
+                  Номер карты
+                </label>
+                <input
+                  id="order-card-number"
+                  value={paymentDetails.cardNumber}
+                  onChange={(event) => handleCardNumberChange(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="cc-number"
+                  placeholder="0000 0000 0000 0000"
+                  required
+                  className="w-full h-11 px-3 bg-input-background border border-border rounded-md text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="order-expiry-date" className="block text-sm text-foreground mb-2">
+                    Срок действия
+                  </label>
+                  <input
+                    id="order-expiry-date"
+                    value={paymentDetails.expiryDate}
+                    onChange={(event) => handleExpiryChange(event.target.value)}
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
+                    placeholder="ММ/ГГ"
+                    required
+                    className="w-full h-11 px-3 bg-input-background border border-border rounded-md text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="order-card-cvv" className="block text-sm text-foreground mb-2">
+                    CVV
+                  </label>
+                  <input
+                    id="order-card-cvv"
+                    type="password"
+                    value={paymentDetails.cvv}
+                    onChange={(event) =>
+                      updatePaymentDetails(
+                        "cvv",
+                        event.target.value.replace(/\D/g, "").slice(0, 3),
+                      )
+                    }
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                    placeholder="000"
+                    required
+                    className="w-full h-11 px-3 bg-input-background border border-border rounded-md text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Данные карты используются только для выполнения платежа и не сохраняются в заказе.
+              </p>
+            </div>
+          )}
+
           <label className="flex items-center gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary transition-colors">
             <input
               type="radio"
               name="payment"
-              value="insurance"
-              checked={formData.paymentMethod === "insurance"}
+              value="later"
+              checked={formData.paymentMethod === "later"}
               onChange={(e) => updateFormData("paymentMethod", e.target.value)}
               className="w-5 h-5 accent-primary"
             />
             <div className="flex-1">
-              <div className="text-foreground">Страховое покрытие</div>
+              <div className="text-foreground">Оплатить позже</div>
               <div className="text-sm text-muted-foreground">
-                Оплата через страховую компанию
+                Заказ появится в личном кабинете, где его можно будет оплатить картой
               </div>
             </div>
           </label>
@@ -866,14 +1249,12 @@ function Step6Review({ formData, jumpToStep }: { formData: FormData; jumpToStep:
 
   const getPaymentHelperText = () => {
     switch (formData.paymentMethod) {
-      case "invoice":
-        return "Оплата будет произведена после подтверждения";
       case "credit":
-        return "Оплата будет обработана после подтверждения";
-      case "insurance":
-        return "Оплата будет произведена через страховую компанию";
+        return "Оплата картой будет выполнена сразу после создания заказа";
+      case "later":
+        return "Заказ можно будет оплатить позже в личном кабинете";
       default:
-        return "Оплата будет произведена после подтверждения";
+        return "Оплата ожидается";
     }
   };
 
@@ -1033,14 +1414,34 @@ function Step6Review({ formData, jumpToStep }: { formData: FormData; jumpToStep:
           </div>
         </div>
 
+        {formData.serviceType === "burial" && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-foreground">Место захоронения</h3>
+            <button
+              onClick={() => jumpToStep(5)}
+              className="text-sm text-primary hover:underline"
+            >
+              Изменить
+            </button>
+          </div>
+          <div className="bg-secondary/50 rounded-lg p-4 text-sm">
+            {formData.selectedPlotLabel ? (
+              <p className="text-foreground">{formData.selectedPlotLabel}</p>
+            ) : (
+              <p className="text-muted-foreground">Место не выбрано</p>
+            )}
+          </div>
+        </div>
+        )}
+
         {/* Payment Method */}
         <div>
           <h3 className="mb-3 text-foreground">Способ оплаты</h3>
           <div className="bg-secondary/50 rounded-lg p-4 text-sm space-y-1">
             <p className="text-foreground">
-              {formData.paymentMethod === "invoice" && "Счёт"}
               {formData.paymentMethod === "credit" && "Банковская карта"}
-              {formData.paymentMethod === "insurance" && "Страховое покрытие"}
+              {formData.paymentMethod === "later" && "Оплатить позже"}
             </p>
             <p className="text-muted-foreground text-xs">Статус: Ожидает оплаты</p>
             <p className="text-muted-foreground text-xs">{getPaymentHelperText()}</p>
@@ -1165,7 +1566,17 @@ function OrderSummary({ selectedServices, selectedProducts, removeService, remov
   );
 }
 
-function OrderConfirmation({ orderId, onNewOrder }: { orderId: string; onNewOrder: () => void }) {
+function OrderConfirmation({
+  orderId,
+  paymentResult,
+  paymentError,
+  onNewOrder,
+}: {
+  orderId: string;
+  paymentResult: "paid" | "deferred" | "failed" | null;
+  paymentError: string;
+  onNewOrder: () => void;
+}) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
@@ -1229,11 +1640,41 @@ function OrderConfirmation({ orderId, onNewOrder }: { orderId: string; onNewOrde
           </div>
 
           <div className="flex justify-center mb-8">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-secondary text-secondary-foreground border border-border">
-              <span className="w-2 h-2 bg-muted-foreground rounded-full mr-2"></span>
-              Статус: Ожидает подтверждения
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm border ${
+              paymentResult === "paid"
+                ? "bg-primary/10 text-primary border-primary/30"
+                : "bg-secondary text-secondary-foreground border-border"
+            }`}>
+              <span className={`w-2 h-2 rounded-full mr-2 ${
+                paymentResult === "paid" ? "bg-primary" : "bg-muted-foreground"
+              }`}></span>
+              {paymentResult === "paid" ? "Статус: Оплачен" : "Статус: Ожидает оплаты"}
             </span>
           </div>
+
+          {paymentResult === "paid" && (
+            <div className="mb-8 border border-primary/30 bg-primary/10 rounded-lg p-4 text-left">
+              <p className="text-primary">Оплата банковской картой прошла успешно.</p>
+            </div>
+          )}
+
+          {paymentResult === "failed" && (
+            <div className="mb-8 border border-destructive/30 bg-destructive/10 rounded-lg p-4 text-left">
+              <p className="text-destructive">Заказ создан, но оплата не прошла.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {paymentError || "Повторить оплату можно в личном кабинете."}
+              </p>
+            </div>
+          )}
+
+          {paymentResult === "deferred" && (
+            <div className="mb-8 border border-border bg-secondary/30 rounded-lg p-4 text-left">
+              <p className="text-foreground">Вы выбрали оплату позже.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Оплатить заказ можно в личном кабинете по номеру телефона из заказа.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-4 text-left mb-8 bg-secondary/30 rounded-lg p-6">
             <h2 className="text-xl text-foreground">Что будет дальше:</h2>

@@ -10,6 +10,7 @@ import { AdminLayout } from "./components/admin/AdminLayout";
 import { Dashboard } from "./components/admin/Dashboard";
 import { Orders } from "./components/admin/Orders";
 import { OrderDetails } from "./components/admin/OrderDetails";
+import { AdminCatalog } from "./components/admin/AdminCatalog";
 import { IPAccess } from "./components/admin/IPAccess";
 import { RateLimiting } from "./components/admin/RateLimiting";
 import { AccountLogin } from "./components/account/AccountLogin";
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { index: true, Component: Dashboard },
       { path: "orders", Component: Orders },
       { path: "orders/:orderId", Component: OrderDetails },
+      { path: "catalog", Component: AdminCatalog },
       { path: "ip-access", Component: IPAccess },
       { path: "rate-limiting", Component: RateLimiting },
     ],

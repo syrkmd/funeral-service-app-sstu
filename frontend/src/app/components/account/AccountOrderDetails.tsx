@@ -1,4 +1,6 @@
+import { useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router";
+import { CreditCard, LoaderCircle, LockKeyhole } from "lucide-react";
 import { useOrdersStore } from "../../store/ordersStore";
 import { useUserStore } from "../../store/userStore";
 
@@ -6,6 +8,13 @@ export function AccountOrderDetails() {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const currentUserPhone = useUserStore((state) => state.currentUserPhone);
+  const payOrder = useOrdersStore((state) => state.payOrder);
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const order = useOrdersStore((state) =>
     state.orders.find((o) => o.id === orderId)
@@ -13,6 +22,38 @@ export function AccountOrderDetails() {
 
   const handleDownload = (documentName: string) => {
     alert(`Скачивание: ${documentName}`);
+  };
+
+  const handleCardNumberChange = (value: string) => {
+    setCardNumber(value.replace(/\D/g, "").slice(0, 16));
+  };
+
+  const handleExpiryChange = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    setExpiryDate(digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits);
+  };
+
+  const handlePayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!orderId) return;
+
+    setIsPaying(true);
+    setPaymentError(null);
+    setPaymentSuccess(false);
+
+    try {
+      await payOrder(orderId, { cardNumber, cvv, expiryDate });
+      setPaymentSuccess(true);
+      setCardNumber("");
+      setExpiryDate("");
+      setCvv("");
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error ? error.message : "Не удалось выполнить оплату",
+      );
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   // Security check: verify order belongs to current user
@@ -125,6 +166,32 @@ export function AccountOrderDetails() {
         </div>
       </div>
 
+      {/* Ceremony Info */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h3 className="text-lg mb-4 text-foreground">Детали церемонии</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-muted-foreground">Дата и время:</span>
+            <p className="text-foreground">
+              {order.serviceDate || "Не указано"}
+              {order.serviceTime ? ` в ${order.serviceTime}` : ""}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Место проведения:</span>
+            <p className="text-foreground">{order.serviceAddress || "Не указано"}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Место захоронения:</span>
+            <p className="text-foreground">{order.cemeteryPlotCode || "Не выбрано"}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Примечания:</span>
+            <p className="text-foreground">{order.cemeteryNotes || "Нет примечаний"}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Services */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h3 className="text-lg mb-4 text-foreground">Услуги</h3>
@@ -158,6 +225,105 @@ export function AccountOrderDetails() {
           <span className="text-3xl text-primary">{order.total.toLocaleString()} ₽</span>
         </div>
       </div>
+
+      {!order.isPaid && order.status !== "cancelled" && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="flex items-start gap-3 mb-5">
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+              <CreditCard className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg text-foreground">Оплата банковской картой</h3>
+              <p className="text-sm text-muted-foreground">
+                К оплате: {order.total.toLocaleString()} ₽
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handlePayment} className="space-y-4 max-w-xl">
+            <div>
+              <label htmlFor="card-number" className="block text-sm text-foreground mb-2">
+                Номер карты
+              </label>
+              <input
+                id="card-number"
+                value={cardNumber}
+                onChange={(event) => handleCardNumberChange(event.target.value)}
+                inputMode="numeric"
+                autoComplete="cc-number"
+                placeholder="0000 0000 0000 0000"
+                required
+                pattern="\d{16}"
+                className="w-full h-11 px-3 bg-background border border-border rounded-md text-foreground outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="expiry-date" className="block text-sm text-foreground mb-2">
+                  Срок действия
+                </label>
+                <input
+                  id="expiry-date"
+                  value={expiryDate}
+                  onChange={(event) => handleExpiryChange(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  placeholder="ММ/ГГ"
+                  required
+                  pattern="(0[1-9]|1[0-2])/\d{2}"
+                  className="w-full h-11 px-3 bg-background border border-border rounded-md text-foreground outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label htmlFor="card-cvv" className="block text-sm text-foreground mb-2">
+                  CVV
+                </label>
+                <input
+                  id="card-cvv"
+                  type="password"
+                  value={cvv}
+                  onChange={(event) => setCvv(event.target.value.replace(/\D/g, "").slice(0, 3))}
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  placeholder="000"
+                  required
+                  pattern="\d{3}"
+                  className="w-full h-11 px-3 bg-background border border-border rounded-md text-foreground outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            {paymentError && (
+              <p role="alert" className="text-sm text-destructive">
+                {paymentError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isPaying}
+              className="h-11 px-5 bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-60 transition-opacity inline-flex items-center justify-center gap-2"
+            >
+              {isPaying ? (
+                <LoaderCircle className="w-4 h-4 animate-spin" />
+              ) : (
+                <LockKeyhole className="w-4 h-4" />
+              )}
+              {isPaying ? "Оплата..." : `Оплатить ${order.total.toLocaleString()} ₽`}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {(order.isPaid || paymentSuccess) && (
+        <div className="border border-primary/30 bg-primary/10 rounded-lg p-5">
+          <p className="text-primary">Оплата успешно выполнена</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Заказ отмечен как оплаченный.
+          </p>
+        </div>
+      )}
 
       {/* Documents */}
       <div className="bg-card border border-border rounded-lg p-6">

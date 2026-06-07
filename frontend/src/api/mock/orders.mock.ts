@@ -103,6 +103,27 @@ const initialOrders: Order[] = [
   },
 ];
 
+const mockServiceCatalog = [
+  { id: 1, name: "Традиционные похороны", price: 450000 },
+  { id: 2, name: "Кремация", price: 280000 },
+  { id: 3, name: "Поминальная церемония", price: 150000 },
+  { id: 4, name: "Церемония на кладбище", price: 120000 },
+  { id: 5, name: "Прощание", price: 80000 },
+  { id: 6, name: "Бальзамирование", price: 65000 },
+  { id: 7, name: "Транспортировка", price: 35000 },
+];
+
+const mockProductCatalog = [
+  { id: 1, name: "Гроб дубовый премиум", price: 320000 },
+  { id: 2, name: "Гроб из красного дерева", price: 410000 },
+  { id: 3, name: "Гроб сосновый", price: 180000 },
+  { id: 4, name: "Урна латунная", price: 45000 },
+  { id: 5, name: "Урна керамическая", price: 32000 },
+  { id: 6, name: "Венок", price: 28000 },
+  { id: 7, name: "Траурная композиция на гроб", price: 45000 },
+  { id: 8, name: "Книга памяти", price: 7500 },
+];
+
 let memoryOrders = [...initialOrders];
 
 const delay = () => new Promise((resolve) => setTimeout(resolve, 150));
@@ -204,9 +225,13 @@ export const mockOrdersApi: OrdersApi = {
 
   async createOrder(data: CreateOrderData) {
     await delay();
-    const createdAt = data.createdAt || new Date().toISOString();
+    const createdAt = new Date().toISOString();
     const order: Order = {
       ...data,
+      status: "processing",
+      total: [...data.services, ...data.products].reduce((sum, item) => sum + item.price, 0),
+      phone: data.client.phone,
+      isPaid: false,
       createdAt,
       updatedAt: createdAt,
       id: `ORD-${Date.now().toString(36).toUpperCase()}`,
@@ -235,6 +260,91 @@ export const mockOrdersApi: OrdersApi = {
       isPaid,
       paymentConfirmedAt: isPaid ? paymentConfirmedAt : undefined,
       updatedAt: paymentConfirmedAt,
+    }));
+  },
+
+  async payOrder(id: string) {
+    await delay();
+    const paymentConfirmedAt = new Date().toISOString();
+    return updateOrder(id, (order) => ({
+      ...order,
+      isPaid: true,
+      paymentConfirmedAt,
+      updatedAt: paymentConfirmedAt,
+    }));
+  },
+
+  async updateClient(id, data) {
+    await delay();
+    return updateOrder(id, (order) => ({
+      ...order,
+      phone: data.phone,
+      client: data,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async updateDeceased(id, data) {
+    await delay();
+    return updateOrder(id, (order) => ({
+      ...order,
+      deceased: data,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async updateOrderDate(id, date) {
+    await delay();
+    return updateOrder(id, (order) => ({
+      ...order,
+      date,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async updateCeremony(id, data) {
+    await delay();
+    return updateOrder(id, (order) => ({
+      ...order,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async replaceServices(id, serviceIds) {
+    await delay();
+    const services = mockServiceCatalog.filter((service) => serviceIds.includes(service.id));
+    const total = [...services, ...requireOrder(id).products]
+      .reduce((sum, item) => sum + item.price, 0);
+
+    return updateOrder(id, (order) => ({
+      ...order,
+      services,
+      total,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async replaceProducts(id, productIds) {
+    await delay();
+    const products = mockProductCatalog.filter((product) => productIds.includes(product.id));
+    const total = [...requireOrder(id).services, ...products]
+      .reduce((sum, item) => sum + item.price, 0);
+
+    return updateOrder(id, (order) => ({
+      ...order,
+      products,
+      total,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
+
+  async applyDiscount(id, discountAmount) {
+    await delay();
+    return updateOrder(id, (order) => ({
+      ...order,
+      total: Math.max(0, order.total - discountAmount),
+      updatedAt: new Date().toISOString(),
     }));
   },
 

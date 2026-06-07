@@ -28,6 +28,7 @@ export function AdminLayout() {
   const menuItems = [
     { path: "/admin", label: "Dashboard", exact: true },
     { path: "/admin/orders", label: "Orders" },
+    { path: "/admin/catalog", label: "Catalog" },
     { path: "/admin/ip-access", label: "IP Access" },
     { path: "/admin/rate-limiting", label: "Rate Limiting" },
   ];
