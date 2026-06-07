@@ -3,6 +3,7 @@ package com.funeral.funeralService.dto.catalog.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 
@@ -25,12 +26,14 @@ public class CreateFuneralServiceRequest {
     private BigDecimal price;
 
     @NotNull
+    @Positive
     @Schema(description = "Id существующей категории услуги", example = "1")
     private Long categoryId;
 
     @Schema(description = "Показывается ли услуга при оформлении заказа", example = "true")
     private Boolean active = true;
 
+    @PositiveOrZero
     @Schema(description = "Порядок отображения. Чем меньше число, тем выше элемент в списке.", example = "10")
     private Integer sortOrder;
 }

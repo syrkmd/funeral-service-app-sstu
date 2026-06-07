@@ -65,8 +65,8 @@ public class Order {
     @Column(name = "cemetery_plot_id")
     private Long cemeteryPlotId;
 
-    @Column(name = "cemetery_plot_label")
-    private String cemeteryPlotLabel;
+    @Column(name = "cemetery_plot_code")
+    private String cemeteryPlotCode;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderServiceItem> services;

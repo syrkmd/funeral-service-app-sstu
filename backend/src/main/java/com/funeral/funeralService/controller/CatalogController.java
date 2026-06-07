@@ -4,12 +4,14 @@ import com.funeral.funeralService.dto.catalog.request.CreateCatalogProductReques
 import com.funeral.funeralService.dto.catalog.request.UpdateCatalogProductRequest;
 import com.funeral.funeralService.dto.catalog.response.CatalogProductDto;
 import com.funeral.funeralService.dto.catalog.response.ProductCategoryDto;
+import com.funeral.funeralService.service.AdminSessionService;
 import com.funeral.funeralService.service.CatalogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +25,7 @@ import java.util.List;
 public class CatalogController {
 
     private final CatalogService service;
+    private final AdminSessionService adminSessionService;
 
     @GetMapping("/products")
     @Operation(summary = "Получить товары каталога", description = "Возвращает активные товары для публичного каталога. Админка может передать includeInactive=true, чтобы увидеть архивные товары.")
@@ -42,7 +45,8 @@ public class CatalogController {
     @ApiResponse(responseCode = "201", description = "Товар создан")
     @ApiResponse(responseCode = "400", description = "Ошибка валидации")
     @ApiResponse(responseCode = "404", description = "Категория товара не найдена")
-    public CatalogProductDto createProduct(@Valid @RequestBody CreateCatalogProductRequest request) {
+    public CatalogProductDto createProduct(@Valid @RequestBody CreateCatalogProductRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.createProduct(request);
     }
 
@@ -53,8 +57,10 @@ public class CatalogController {
     @ApiResponse(responseCode = "404", description = "Товар или категория не найдены")
     public CatalogProductDto updateProduct(
             @Parameter(description = "Id товара", example = "8") @PathVariable Long id,
-            @Valid @RequestBody UpdateCatalogProductRequest request
+            @Valid @RequestBody UpdateCatalogProductRequest request,
+            HttpSession session
     ) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateProduct(id, request);
     }
 
@@ -63,7 +69,8 @@ public class CatalogController {
     @Operation(summary = "Архивировать товар каталога", description = "Админский soft delete endpoint. Товар не удаляется физически, а переводится в active=false.")
     @ApiResponse(responseCode = "204", description = "Товар архивирован")
     @ApiResponse(responseCode = "404", description = "Товар не найден")
-    public void archiveProduct(@Parameter(description = "Id товара", example = "8") @PathVariable Long id) {
+    public void archiveProduct(@Parameter(description = "Id товара", example = "8") @PathVariable Long id, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         service.archiveProduct(id);
     }
 

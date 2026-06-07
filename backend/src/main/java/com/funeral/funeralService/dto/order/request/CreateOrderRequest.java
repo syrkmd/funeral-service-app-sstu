@@ -2,16 +2,15 @@ package com.funeral.funeralService.dto.order.request;
 
 import com.funeral.funeralService.dto.order.common.ClientDto;
 import com.funeral.funeralService.dto.order.common.DeceasedDto;
-import com.funeral.funeralService.dto.order.common.OrderItemDto;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,25 +22,6 @@ public class CreateOrderRequest {
     @NotNull
     @Schema(description = "Основная дата заказа, выбранная клиентом", example = "2026-05-24")
     private LocalDate date;
-
-    @Schema(description = "Необязательное время создания, переданное frontend", example = "2026-05-24T20:15:00")
-    private String createdAt;
-
-    @Schema(description = "Начальный статус заказа. Если не передан, используется processing.", example = "processing", allowableValues = {"processing", "confirmed", "completed", "cancelled"})
-    private String status;
-
-    @NotNull
-    @PositiveOrZero
-    @Schema(description = "Рассчитанная итоговая сумма заказа в рублях", example = "450000")
-    private BigDecimal total;
-
-    @NotBlank
-    @Schema(description = "Телефон клиента, продублированный для быстрого поиска заказа", example = "+79991234567")
-    private String phone;
-
-    @NotNull
-    @Schema(description = "Начальное состояние оплаты", example = "false")
-    private Boolean isPaid;
 
     @Valid
     @NotNull
@@ -56,6 +36,7 @@ public class CreateOrderRequest {
     @Schema(description = "Дата церемонии", example = "2026-05-27")
     private LocalDate serviceDate;
 
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "Время должно быть в формате HH:mm")
     @Schema(description = "Время церемонии в формате HH:mm", example = "12:30")
     private String serviceTime;
 
@@ -69,19 +50,21 @@ public class CreateOrderRequest {
     private String cemeteryNotes;
 
     @Schema(description = "Id выбранного места захоронения из интеграции с кладбищем", example = "2")
+    @Positive
     private Long cemeteryPlotId;
 
-    @Schema(description = "Понятное название выбранного места захоронения", example = "A-13")
-    private String cemeteryPlotLabel;
+    @JsonAlias("cemeteryPlotLabel")
+    @Schema(description = "Код выбранного места захоронения", example = "A-01-07")
+    private String cemeteryPlotCode;
 
     @Valid
     @Size(min = 1)
-    @Schema(description = "Выбранные услуги. Требуется минимум одна услуга.")
-    private List<OrderItemDto> services = new ArrayList<>();
+    @Schema(description = "Выбранные услуги. Backend сверяет названия с активным каталогом и использует серверные цены.")
+    private List<OrderCatalogSelectionRequest> services = new ArrayList<>();
 
     @Valid
-    @Schema(description = "Выбранные товары. Может быть пустым списком.")
-    private List<OrderItemDto> products = new ArrayList<>();
+    @Schema(description = "Выбранные товары. Backend сверяет названия с активным каталогом и использует серверные цены.")
+    private List<OrderCatalogSelectionRequest> products = new ArrayList<>();
 
     @Valid
     @Schema(description = "Необязательные метаданные документов, прикрепляемые при создании заказа")

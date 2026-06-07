@@ -2,6 +2,7 @@ package com.funeral.funeralService.service;
 
 import com.funeral.funeralService.dto.admin.request.AdminLoginRequest;
 import com.funeral.funeralService.dto.admin.response.AdminSessionResponse;
+import com.funeral.funeralService.exception.AdminAccessDeniedException;
 import com.funeral.funeralService.exception.InvalidAdminCredentialsException;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Service;
@@ -34,4 +35,9 @@ public class AdminSessionService {
         session.removeAttribute(ADMIN_SESSION_KEY);
     }
 
+    public void requireAuthenticated(HttpSession session) {
+        if (!Boolean.TRUE.equals(session.getAttribute(ADMIN_SESSION_KEY))) {
+            throw new AdminAccessDeniedException();
+        }
+    }
 }

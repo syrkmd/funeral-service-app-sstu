@@ -8,6 +8,7 @@ import com.funeral.funeralService.dto.order.request.OrderDocumentRequest;
 import com.funeral.funeralService.dto.order.response.OrderDocumentDto;
 import com.funeral.funeralService.dto.order.response.OrderResponse;
 import com.funeral.funeralService.entity.*;
+import com.funeral.funeralService.exception.InvalidOrderStatusException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -19,9 +20,6 @@ public class OrderMapper {
         Order order = new Order();
 
         order.setOrderDate(request.getDate());
-        order.setStatus(parseStatus(request.getStatus()));
-        order.setTotalAmount(request.getTotal());
-        order.setPaid(request.getIsPaid());
 
         order.setClientName(request.getClient().getName());
         order.setClientPhone(request.getClient().getPhone());
@@ -37,10 +35,8 @@ public class OrderMapper {
         order.setCemetery(request.getCemetery());
         order.setCemeteryNotes(request.getCemeteryNotes());
         order.setCemeteryPlotId(request.getCemeteryPlotId());
-        order.setCemeteryPlotLabel(request.getCemeteryPlotLabel());
+        order.setCemeteryPlotCode(request.getCemeteryPlotCode());
 
-        order.setServices(toServiceItems(request.getServices(), order));
-        order.setProducts(toProductItems(request.getProducts(), order));
         order.setDocuments(toDocumentItems(request.getDocuments(), order));
 
         return order;
@@ -74,7 +70,7 @@ public class OrderMapper {
         response.setCemetery(order.getCemetery());
         response.setCemeteryNotes(order.getCemeteryNotes());
         response.setCemeteryPlotId(order.getCemeteryPlotId());
-        response.setCemeteryPlotLabel(order.getCemeteryPlotLabel());
+        response.setCemeteryPlotCode(order.getCemeteryPlotCode());
 
         response.setServices(
                 order.getServices().stream()
@@ -108,39 +104,11 @@ public class OrderMapper {
             return OrderStatus.PROCESSING;
         }
 
-        return OrderStatus.valueOf(status.toUpperCase());
-    }
-
-    private OrderStatus parseStatus(String status) {
-        if (status == null || status.isBlank()) {
-            return OrderStatus.PROCESSING;
+        try {
+            return OrderStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidOrderStatusException(status);
         }
-
-        return OrderStatus.valueOf(status.toUpperCase());
-    }
-
-    public List<OrderServiceItem> toServiceItems(List<OrderItemDto> items, Order order) {
-        return items.stream()
-                .map(item -> {
-                    OrderServiceItem entity = new OrderServiceItem();
-                    entity.setOrder(order);
-                    entity.setName(item.getName());
-                    entity.setPrice(item.getPrice());
-                    return entity;
-                })
-                .toList();
-    }
-
-    public List<OrderProductItem> toProductItems(List<OrderItemDto> items, Order order) {
-        return items.stream()
-                .map(item -> {
-                    OrderProductItem entity = new OrderProductItem();
-                    entity.setOrder(order);
-                    entity.setName(item.getName());
-                    entity.setPrice(item.getPrice());
-                    return entity;
-                })
-                .toList();
     }
 
     private List<OrderDocument> toDocumentItems(List<OrderDocumentRequest> documents, Order order) {

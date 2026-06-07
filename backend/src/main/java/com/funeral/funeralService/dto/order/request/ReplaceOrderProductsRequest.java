@@ -2,6 +2,7 @@ package com.funeral.funeralService.dto.order.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -13,5 +14,5 @@ public class ReplaceOrderProductsRequest {
 
     @NotNull
     @Schema(description = "Id товаров из каталога. Пустой список означает, что товары не выбраны.", example = "[3, 7]")
-    private List<Long> productIds = new ArrayList<>();
+    private List<@NotNull @Positive Long> productIds = new ArrayList<>();
 }

@@ -2,12 +2,14 @@ package com.funeral.funeralService.controller;
 
 import com.funeral.funeralService.dto.order.request.*;
 import com.funeral.funeralService.dto.order.response.OrderResponse;
+import com.funeral.funeralService.service.AdminSessionService;
 import com.funeral.funeralService.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService service;
+    private final AdminSessionService adminSessionService;
 
     @GetMapping
     @Operation(
@@ -59,7 +62,8 @@ public class OrderController {
     @Operation(summary = "Изменить статус заказа", description = "Админский endpoint для изменения жизненного цикла заказа: processing, confirmed, completed или cancelled.")
     @ApiResponse(responseCode = "200", description = "Статус изменён")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateStatus(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderStatusRequest request) {
+    public OrderResponse updateStatus(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderStatusRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateStatus(id, request);
     }
 
@@ -67,7 +71,8 @@ public class OrderController {
     @Operation(summary = "Изменить статус оплаты", description = "Админский endpoint для отметки заказа как оплаченного или неоплаченного.")
     @ApiResponse(responseCode = "200", description = "Статус оплаты изменён")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updatePayment(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderPaymentRequest request) {
+    public OrderResponse updatePayment(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderPaymentRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updatePayment(id, request);
     }
 
@@ -75,7 +80,8 @@ public class OrderController {
     @Operation(summary = "Изменить данные клиента", description = "Админский endpoint для исправления имени, телефона или email клиента после создания заказа.")
     @ApiResponse(responseCode = "200", description = "Данные клиента изменены")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateClient(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderClientRequest request) {
+    public OrderResponse updateClient(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderClientRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateClient(id, request);
     }
 
@@ -83,7 +89,8 @@ public class OrderController {
     @Operation(summary = "Изменить данные умершего", description = "Админский endpoint для исправления данных умершего человека.")
     @ApiResponse(responseCode = "200", description = "Данные умершего изменены")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateDeceased(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDeceasedRequest request) {
+    public OrderResponse updateDeceased(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDeceasedRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateDeceased(id, request);
     }
 
@@ -91,7 +98,8 @@ public class OrderController {
     @Operation(summary = "Заменить услуги заказа", description = "Админский endpoint полностью заменяет выбранные услуги заказа по id из каталога услуг.")
     @ApiResponse(responseCode = "200", description = "Услуги заменены, сумма заказа пересчитана")
     @ApiResponse(responseCode = "404", description = "Заказ или услуга не найдены")
-    public OrderResponse replaceServices(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody ReplaceOrderServicesRequest request) {
+    public OrderResponse replaceServices(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody ReplaceOrderServicesRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.replaceServices(id, request);
     }
 
@@ -99,7 +107,8 @@ public class OrderController {
     @Operation(summary = "Заменить товары заказа", description = "Админский endpoint полностью заменяет выбранные товары заказа по id из каталога товаров.")
     @ApiResponse(responseCode = "200", description = "Товары заменены, сумма заказа пересчитана")
     @ApiResponse(responseCode = "404", description = "Заказ или товар не найдены")
-    public OrderResponse replaceProducts(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody ReplaceOrderProductsRequest request) {
+    public OrderResponse replaceProducts(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody ReplaceOrderProductsRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.replaceProducts(id, request);
     }
 
@@ -107,7 +116,8 @@ public class OrderController {
     @Operation(summary = "Изменить дату заказа", description = "Админский endpoint для изменения основной даты заказа.")
     @ApiResponse(responseCode = "200", description = "Дата заказа изменена")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateDate(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDateRequest request) {
+    public OrderResponse updateDate(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDateRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateDate(id, request);
     }
 
@@ -115,7 +125,8 @@ public class OrderController {
     @Operation(summary = "Применить скидку", description = "Админский endpoint для применения ручной скидки к итоговой сумме заказа.")
     @ApiResponse(responseCode = "200", description = "Скидка применена")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateDiscount(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDiscountRequest request) {
+    public OrderResponse updateDiscount(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderDiscountRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateDiscount(id, request);
     }
 
@@ -123,7 +134,8 @@ public class OrderController {
     @Operation(summary = "Изменить детали церемонии", description = "Админский endpoint для изменения даты, времени, адреса церемонии и примечаний по кладбищу.")
     @ApiResponse(responseCode = "200", description = "Детали церемонии изменены")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse updateCeremony(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderCeremonyRequest request) {
+    public OrderResponse updateCeremony(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody UpdateOrderCeremonyRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.updateCeremony(id, request);
     }
 
@@ -131,7 +143,8 @@ public class OrderController {
     @Operation(summary = "Добавить документ к заказу", description = "Админский endpoint для добавления метаданных документа к заказу.")
     @ApiResponse(responseCode = "200", description = "Документ добавлен")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public OrderResponse addDocument(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody OrderDocumentRequest request) {
+    public OrderResponse addDocument(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, @Valid @RequestBody OrderDocumentRequest request, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         return service.addDocument(id, request);
     }
 
@@ -141,8 +154,10 @@ public class OrderController {
     @ApiResponse(responseCode = "404", description = "Заказ или документ не найдены")
     public OrderResponse removeDocument(
             @Parameter(example = "ORD-F12EEB09") @PathVariable String id,
-            @Parameter(description = "Id документа", example = "1") @PathVariable Long documentId
+            @Parameter(description = "Id документа", example = "1") @PathVariable Long documentId,
+            HttpSession session
     ) {
+        adminSessionService.requireAuthenticated(session);
         return service.removeDocument(id, documentId);
     }
 
@@ -151,8 +166,25 @@ public class OrderController {
     @Operation(summary = "Удалить заказ", description = "Админский endpoint для удаления заказа из системы.")
     @ApiResponse(responseCode = "204", description = "Заказ удалён")
     @ApiResponse(responseCode = "404", description = "Заказ не найден")
-    public void deleteOrder(@Parameter(example = "ORD-F12EEB09") @PathVariable String id) {
+    public void deleteOrder(@Parameter(example = "ORD-F12EEB09") @PathVariable String id, HttpSession session) {
+        adminSessionService.requireAuthenticated(session);
         service.deleteOrder(id);
     }
 
+    @PostMapping("/{id}/pay")
+    @Operation(
+            summary = "Оплатить заказ",
+            description = "Клиентский endpoint. Выполняет оплату через bank-service. " +
+                    "Сумма берётся из заказа. После успешного перевода заказ отмечается оплаченным."
+    )
+    @ApiResponse(responseCode = "200", description = "Оплата успешно выполнена")
+    @ApiResponse(responseCode = "400", description = "Некорректные данные карты или ошибка банка")
+    @ApiResponse(responseCode = "404", description = "Заказ не найден")
+    @ApiResponse(responseCode = "409", description = "Заказ уже оплачен")
+    public OrderResponse payOrder(
+            @PathVariable String id,
+            @Valid @RequestBody PayOrderRequest request
+    ) {
+        return service.payOrder(id, request);
+    }
 }

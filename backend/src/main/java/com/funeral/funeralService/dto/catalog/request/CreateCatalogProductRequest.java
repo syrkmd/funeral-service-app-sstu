@@ -3,6 +3,7 @@ package com.funeral.funeralService.dto.catalog.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 
@@ -28,12 +29,14 @@ public class CreateCatalogProductRequest {
     private String imageUrl;
 
     @NotNull
+    @Positive
     @Schema(description = "Id существующей категории товара", example = "2")
     private Long categoryId;
 
     @Schema(description = "Показывается ли товар в публичном каталоге", example = "true")
     private Boolean active = true;
 
+    @PositiveOrZero
     @Schema(description = "Порядок отображения. Чем меньше число, тем выше элемент в списке.", example = "10")
     private Integer sortOrder;
 }

@@ -58,8 +58,8 @@ public class OrderResponse {
     @Schema(description = "Id выбранного места захоронения", example = "2")
     private Long cemeteryPlotId;
 
-    @Schema(description = "Название выбранного места захоронения", example = "A-13")
-    private String cemeteryPlotLabel;
+    @Schema(description = "Код выбранного места захоронения", example = "A-01-07")
+    private String cemeteryPlotCode;
 
     private List<OrderItemDto> services = new ArrayList<>();
 
