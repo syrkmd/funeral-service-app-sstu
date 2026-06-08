@@ -6,6 +6,7 @@ import com.funeral.funeralService.exception.BankPaymentException;
 import com.funeral.funeralService.exception.BankServiceUnavailableException;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -24,8 +25,15 @@ public class BankClientService {
             @Value("${bank.service.url}") String bankServiceUrl,
             @Value("${bank.receiver-card-number}") String receiverCardNumber
     ) {
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(7000);
+
         this.restClient = RestClient.builder()
                 .baseUrl(bankServiceUrl)
+                .requestFactory(factory)
                 .build();
         this.receiverCardNumber = receiverCardNumber;
     }

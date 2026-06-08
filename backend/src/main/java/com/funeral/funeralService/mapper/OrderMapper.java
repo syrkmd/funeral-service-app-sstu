@@ -1,5 +1,6 @@
 package com.funeral.funeralService.mapper;
 
+import com.funeral.funeralService.dto.cemetery.request.PurchasePlotRequest;
 import com.funeral.funeralService.dto.order.common.ClientDto;
 import com.funeral.funeralService.dto.order.common.DeceasedDto;
 import com.funeral.funeralService.dto.order.common.OrderItemDto;
@@ -111,17 +112,32 @@ public class OrderMapper {
         }
     }
 
+    public PurchasePlotRequest toPurchasePlotRequest(CreateOrderRequest request) {
+        PurchasePlotRequest purchaseRequest = new PurchasePlotRequest();
+
+        purchaseRequest.setPlotCode(request.getCemeteryPlotCode());
+        purchaseRequest.setOwnerName(request.getClient().getName());
+        purchaseRequest.setPhone(request.getClient().getPhone());
+        purchaseRequest.setStartDate(request.getServiceDate());
+
+        return purchaseRequest;
+    }
+
+    public OrderDocument toDocument(OrderDocumentRequest request, Order order) {
+        OrderDocument document = new OrderDocument();
+
+        document.setOrder(order);
+        document.setName(request.getName());
+        document.setType(request.getType());
+        document.setDocumentDate(request.getDate());
+        document.setSize(request.getSize());
+
+        return document;
+    }
+
     private List<OrderDocument> toDocumentItems(List<OrderDocumentRequest> documents, Order order) {
         return documents.stream()
-                .map(document -> {
-                    OrderDocument entity = new OrderDocument();
-                    entity.setOrder(order);
-                    entity.setName(document.getName());
-                    entity.setType(document.getType());
-                    entity.setDocumentDate(document.getDate());
-                    entity.setSize(document.getSize());
-                    return entity;
-                })
+                .map(document -> toDocument(document, order))
                 .toList();
     }
 

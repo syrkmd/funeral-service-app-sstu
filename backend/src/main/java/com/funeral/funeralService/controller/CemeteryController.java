@@ -17,20 +17,34 @@ import java.util.List;
 @RestController
 @RequestMapping("/cemetery")
 @RequiredArgsConstructor
-@Tag(name = "Интеграция с кладбищем", description = "Интеграция с сервисом кладбища для получения свободных участков и резервирования мест захоронения")
+@Tag(
+        name = "Интеграция с кладбищем",
+        description = "Интеграция с cemetery-service для получения секций и свободных участков. " +
+                "При integration.cemetery.enabled=false используются локальные демонстрационные данные."
+)
 public class CemeteryController {
 
     private final CemeteryClientService service;
 
     @GetMapping("/plots")
-    @Operation(summary = "Получить места захоронения", description = "Возвращает доступные и недоступные места захоронения из fake-сервиса интеграции.")
+    @Operation(
+            summary = "Получить места захоронения",
+            description = "Возвращает места выбранной секции. При включённой интеграции данные " +
+                    "загружаются из cemetery-service, при integration.cemetery.enabled=false " +
+                    "возвращается локальный демонстрационный список."
+    )
     @ApiResponse(responseCode = "200", description = "Список мест захоронения возвращён")
     public List<CemeteryPlotResponse> getPlots(@RequestParam String sectionName) {
         return service.getPlots(sectionName);
     }
 
     @GetMapping("/sections")
-    @Operation(summary = "Получить секции кладбища", description = "Возвращает секции из внешнего cemetery-service.")
+    @Operation(
+            summary = "Получить секции кладбища",
+            description = "Возвращает секции кладбища. При включённой интеграции данные загружаются " +
+                    "из cemetery-service, при integration.cemetery.enabled=false возвращаются " +
+                    "локальные демонстрационные секции."
+    )
     @ApiResponse(responseCode = "200", description = "Список секций возвращён")
     public List<CemeterySectionResponse> getSections() {
         return service.getSections();

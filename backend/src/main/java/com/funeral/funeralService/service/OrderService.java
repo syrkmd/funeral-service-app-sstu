@@ -1,5 +1,6 @@
 package com.funeral.funeralService.service;
 
+import com.funeral.funeralService.annotation.RequireAdmin;
 import com.funeral.funeralService.dto.cemetery.request.PurchasePlotRequest;
 import com.funeral.funeralService.dto.order.request.*;
 import com.funeral.funeralService.dto.order.response.OrderResponse;
@@ -10,6 +11,7 @@ import com.funeral.funeralService.repository.CatalogProductRepository;
 import com.funeral.funeralService.repository.FuneralServiceRepository;
 import com.funeral.funeralService.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,12 @@ public class OrderService {
     private final BankClientService bankService;
     private final FuneralServiceRepository funeralServiceRepository;
     private final CatalogProductRepository catalogProductRepository;
+
+    @Value("${integration.bank.enabled}")
+    private boolean bankIntegrationEnabled;
+
+    @Value("${integration.cemetery.enabled}")
+    private boolean cemeteryIntegrationEnabled;
 
     public List<OrderResponse> getOrders(String phone) {
         List<Order> orders;
@@ -54,18 +62,15 @@ public class OrderService {
         order.setProducts(toProductItemsByCatalog(request.getProducts(), order));
         recalculateTotal(order);
 
-        if (request.getCemeteryPlotCode() != null
+        if (cemeteryIntegrationEnabled
+                && request.getCemeteryPlotCode() != null
                 && !request.getCemeteryPlotCode().isBlank()) {
 
             if (request.getServiceDate() == null) {
                 throw new InvalidCemeteryReservationException();
             }
 
-            PurchasePlotRequest purchaseRequest = new PurchasePlotRequest();
-            purchaseRequest.setPlotCode(request.getCemeteryPlotCode());
-            purchaseRequest.setOwnerName(request.getClient().getName());
-            purchaseRequest.setPhone(request.getClient().getPhone());
-            purchaseRequest.setStartDate(request.getServiceDate());
+            PurchasePlotRequest purchaseRequest = mapper.toPurchasePlotRequest(request);
 
             cemeteryClientService.reservePlot(purchaseRequest);
         }
@@ -76,6 +81,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateStatus(String id, UpdateOrderStatusRequest request) {
         Order order = findOrder(id);
 
@@ -87,6 +93,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updatePayment(String id, UpdateOrderPaymentRequest request) {
         Order order = findOrder(id);
 
@@ -98,6 +105,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateClient(String id, UpdateOrderClientRequest request) {
         Order order = findOrder(id);
 
@@ -111,6 +119,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateDeceased(String id, UpdateOrderDeceasedRequest request) {
         Order order = findOrder(id);
 
@@ -124,6 +133,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse replaceServices(String id, ReplaceOrderServicesRequest request) {
         Order order = findOrder(id);
 
@@ -137,6 +147,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse replaceProducts(String id, ReplaceOrderProductsRequest request) {
         Order order = findOrder(id);
 
@@ -150,6 +161,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateDate(String id, UpdateOrderDateRequest request) {
         Order order = findOrder(id);
 
@@ -161,6 +173,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateDiscount(String id, UpdateOrderDiscountRequest request) {
         Order order = findOrder(id);
 
@@ -180,6 +193,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse updateCeremony(String id, UpdateOrderCeremonyRequest request) {
         Order order = findOrder(id);
 
@@ -193,6 +207,7 @@ public class OrderService {
         return mapper.toResponse(savedOrder);
     }
 
+    @RequireAdmin
     public void deleteOrder(String id) {
         Order order = findOrder(id);
 
@@ -200,15 +215,11 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse addDocument(String orderId, OrderDocumentRequest request) {
         Order order = findOrder(orderId);
-        OrderDocument document = new OrderDocument();
 
-        document.setOrder(order);
-        document.setName(request.getName());
-        document.setType(request.getType());
-        document.setDocumentDate(request.getDate());
-        document.setSize(request.getSize());
+        OrderDocument document = mapper.toDocument(request, order);
 
         order.getDocuments().add(document);
 
@@ -218,6 +229,7 @@ public class OrderService {
     }
 
     @Transactional
+    @RequireAdmin
     public OrderResponse removeDocument(String orderId, Long documentId) {
         Order order = findOrder(orderId);
 
@@ -241,11 +253,13 @@ public class OrderService {
             throw new OrderAlreadyPaidException(order.getId());
         }
 
-        bankService.pay(
-                order.getId(),
-                order.getTotalAmount(),
-                request
-        );
+        if (bankIntegrationEnabled) {
+            bankService.pay(
+                    order.getId(),
+                    order.getTotalAmount(),
+                    request
+            );
+        }
 
         order.setPaid(true);
 
