@@ -1,3 +1,5 @@
+import { CatalogItemImage } from "./CatalogItemImage";
+
 const servicesData = [
   {
     title: "Традиционные похороны",
@@ -60,14 +62,21 @@ export function Services() {
         {servicesData.map((service) => (
           <div
             key={service.title}
-            className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow"
+            className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
-            <h3 className="text-xl mb-3 text-foreground">{service.title}</h3>
-            <p className="text-muted-foreground mb-4 min-h-[72px]">
-              {service.description}
-            </p>
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <span className="text-xl text-primary">{service.price}</span>
+            <CatalogItemImage
+              kind="service"
+              title={service.title}
+              className="w-full h-44 object-cover bg-muted"
+            />
+            <div className="p-6">
+              <h3 className="text-xl mb-3 text-foreground">{service.title}</h3>
+              <p className="text-muted-foreground mb-4 min-h-[72px]">
+                {service.description}
+              </p>
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                <span className="text-xl text-primary">{service.price}</span>
+              </div>
             </div>
           </div>
         ))}

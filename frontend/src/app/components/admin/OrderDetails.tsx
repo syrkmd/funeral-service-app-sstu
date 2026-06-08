@@ -6,6 +6,7 @@ import {
   type CatalogProductDto,
   type FuneralServiceDto,
 } from "../../../api/catalog.api";
+import { CatalogItemImage } from "../CatalogItemImage";
 import { useOrdersStore, type OrderStatus } from "../../store/ordersStore";
 
 const predefinedFiles = [
@@ -559,6 +560,11 @@ export function OrderDetails() {
                       isSelected ? "border-primary bg-primary/10" : "border-border hover:bg-secondary/50"
                     }`}
                   >
+                    <CatalogItemImage
+                      kind="service"
+                      title={service.title}
+                      className="w-14 h-12 object-cover rounded border border-border bg-muted flex-shrink-0"
+                    />
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -582,8 +588,13 @@ export function OrderDetails() {
         ) : (
         <div className="space-y-2">
           {order.services.map((service, index) => (
-            <div key={index} className="flex justify-between py-2 border-b border-border last:border-0">
-              <span className="text-foreground">{service.name}</span>
+            <div key={index} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <CatalogItemImage
+                kind="service"
+                title={service.name}
+                className="w-12 h-10 object-cover rounded border border-border bg-muted flex-shrink-0"
+              />
+              <span className="text-foreground flex-1">{service.name}</span>
               <span className="text-primary">{service.price.toLocaleString()} ₽</span>
             </div>
           ))}
@@ -618,6 +629,11 @@ export function OrderDetails() {
                       isSelected ? "border-primary bg-primary/10" : "border-border hover:bg-secondary/50"
                     }`}
                   >
+                    <CatalogItemImage
+                      kind="product"
+                      title={product.title}
+                      className="w-14 h-12 object-cover rounded border border-border bg-muted flex-shrink-0"
+                    />
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -641,8 +657,13 @@ export function OrderDetails() {
         ) : (
         <div className="space-y-2">
           {order.products.map((product, index) => (
-            <div key={index} className="flex justify-between py-2 border-b border-border last:border-0">
-              <span className="text-foreground">{product.name}</span>
+            <div key={index} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <CatalogItemImage
+                kind="product"
+                title={product.name}
+                className="w-12 h-10 object-cover rounded border border-border bg-muted flex-shrink-0"
+              />
+              <span className="text-foreground flex-1">{product.name}</span>
               <span className="text-primary">{product.price.toLocaleString()} ₽</span>
             </div>
           ))}

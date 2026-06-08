@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router";
 import { CreditCard, LoaderCircle, LockKeyhole } from "lucide-react";
+import { CatalogItemImage } from "../CatalogItemImage";
 import { useOrdersStore } from "../../store/ordersStore";
 import { useUserStore } from "../../store/userStore";
 
@@ -197,8 +198,13 @@ export function AccountOrderDetails() {
         <h3 className="text-lg mb-4 text-foreground">Услуги</h3>
         <div className="space-y-2">
           {order.services.map((service, index) => (
-            <div key={index} className="flex justify-between py-2 border-b border-border last:border-0">
-              <span className="text-foreground">{service.name}</span>
+            <div key={index} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <CatalogItemImage
+                kind="service"
+                title={service.name}
+                className="w-12 h-10 object-cover rounded border border-border bg-muted flex-shrink-0"
+              />
+              <span className="text-foreground flex-1">{service.name}</span>
               <span className="text-primary">{service.price.toLocaleString()} ₽</span>
             </div>
           ))}
@@ -210,8 +216,13 @@ export function AccountOrderDetails() {
         <h3 className="text-lg mb-4 text-foreground">Товары</h3>
         <div className="space-y-2">
           {order.products.map((product, index) => (
-            <div key={index} className="flex justify-between py-2 border-b border-border last:border-0">
-              <span className="text-foreground">{product.name}</span>
+            <div key={index} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <CatalogItemImage
+                kind="product"
+                title={product.name}
+                className="w-12 h-10 object-cover rounded border border-border bg-muted flex-shrink-0"
+              />
+              <span className="text-foreground flex-1">{product.name}</span>
               <span className="text-primary">{product.price.toLocaleString()} ₽</span>
             </div>
           ))}

@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { CatalogItemImage } from "./CatalogItemImage";
 
 const services = [
   {
@@ -64,13 +65,20 @@ export function Home() {
           {services.map((service) => (
             <div
               key={service.title}
-              className="bg-card border border-border rounded-lg p-6 hover:shadow-sm transition-shadow"
+              className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-sm transition-shadow"
             >
-              <h3 className="text-xl mb-3 text-foreground">{service.title}</h3>
-              <p className="text-muted-foreground mb-4 min-h-[48px]">
-                {service.description}
-              </p>
-              <p className="text-primary">{service.price}</p>
+              <CatalogItemImage
+                kind="service"
+                title={service.title}
+                className="w-full h-40 object-cover bg-muted"
+              />
+              <div className="p-6">
+                <h3 className="text-xl mb-3 text-foreground">{service.title}</h3>
+                <p className="text-muted-foreground mb-4 min-h-[48px]">
+                  {service.description}
+                </p>
+                <p className="text-primary">{service.price}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -92,16 +100,20 @@ export function Home() {
             {products.map((product) => (
               <div
                 key={product.title}
-                className="bg-card border border-border rounded-lg p-6 hover:shadow-sm transition-shadow"
+                className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-sm transition-shadow"
               >
-                <div className="bg-muted rounded-md h-32 mb-4 flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm">{product.title}</span>
+                <CatalogItemImage
+                  kind="product"
+                  title={product.title}
+                  className="w-full h-40 object-cover bg-muted"
+                />
+                <div className="p-6">
+                  <h3 className="mb-2 text-foreground">{product.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {product.description}
+                  </p>
+                  <p className="text-primary">{product.price}</p>
                 </div>
-                <h3 className="mb-2 text-foreground">{product.title}</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  {product.description}
-                </p>
-                <p className="text-primary">{product.price}</p>
               </div>
             ))}
           </div>

@@ -6,6 +6,7 @@ import {
   type CemeteryPlot,
   type CemeterySection,
 } from "../../api/cemetery.api";
+import { CatalogItemImage } from "./CatalogItemImage";
 import { useOrdersStore } from "../store/ordersStore";
 import { normalizePhone } from "../utils/phoneUtils";
 
@@ -834,6 +835,11 @@ function Step3Services({ selectedServices, toggleService }: { selectedServices: 
                 onChange={() => toggleService(service.id)}
                 className="w-5 h-5 accent-primary"
               />
+              <CatalogItemImage
+                kind="service"
+                title={service.name}
+                className="w-16 h-12 object-cover rounded border border-border bg-muted flex-shrink-0"
+              />
               <span className="flex-1 text-foreground">{service.name}</span>
               <span className={isSelected ? "text-primary" : "text-muted-foreground"}>
                 {service.price.toLocaleString()} ₽
@@ -870,6 +876,11 @@ function Step4Products({ selectedProducts, toggleProduct }: { selectedProducts: 
                   checked={isSelected}
                   onChange={() => {}}
                   className="w-5 h-5 accent-primary mt-0.5"
+                />
+                <CatalogItemImage
+                  kind="product"
+                  title={product.name}
+                  className="w-20 h-16 object-cover rounded border border-border bg-muted flex-shrink-0"
                 />
                 <div className="flex-1">
                   <div className="text-foreground mb-2">{product.name}</div>

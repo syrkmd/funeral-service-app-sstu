@@ -4,6 +4,7 @@ import {
   getCatalogProducts,
   type CatalogProductDto,
 } from "../../api/catalog.api";
+import { CatalogItemImage } from "./CatalogItemImage";
 
 const fallbackCategories = ["Все", "Гробы", "Урны", "Цветы", "Памятные изделия"];
 
@@ -100,7 +101,6 @@ type CatalogProductView = {
   title: string;
   description: string;
   price: string;
-  imageUrl?: string | null;
 };
 
 function formatPrice(price: number) {
@@ -114,7 +114,6 @@ function toCatalogProductView(product: CatalogProductDto): CatalogProductView {
     title: product.title,
     description: product.description,
     price: formatPrice(product.price),
-    imageUrl: product.imageUrl,
   };
 }
 
@@ -189,17 +188,11 @@ export function Catalog() {
             key={product.id}
             className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
-            {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.title}
-                className="w-full h-48 object-cover bg-muted"
-              />
-            ) : (
-              <div className="bg-muted h-48 flex items-center justify-center">
-                <span className="text-muted-foreground">{product.title}</span>
-              </div>
-            )}
+            <CatalogItemImage
+              kind="product"
+              title={product.title}
+              className="w-full h-48 object-cover bg-muted"
+            />
             <div className="p-6">
               <div className="text-xs text-muted-foreground mb-2">
                 {product.category}

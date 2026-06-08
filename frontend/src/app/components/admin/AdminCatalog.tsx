@@ -15,6 +15,7 @@ import {
   type ProductCategoryDto,
   type ServiceCategoryDto,
 } from "../../../api/catalog.api";
+import { CatalogItemImage } from "../CatalogItemImage";
 
 type CatalogTab = "services" | "products";
 
@@ -379,9 +380,18 @@ export function AdminCatalog() {
                     className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      <div className="text-sm text-foreground">{item.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">
-                        {item.description || "Без описания"}
+                      <div className="flex items-center gap-3">
+                        <CatalogItemImage
+                          kind={isProductsTab ? "product" : "service"}
+                          title={item.title}
+                          className="w-12 h-12 object-cover rounded border border-border bg-muted flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm text-foreground">{item.title}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {item.description || "Без описания"}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
