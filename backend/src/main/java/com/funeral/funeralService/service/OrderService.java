@@ -3,11 +3,7 @@ package com.funeral.funeralService.service;
 import com.funeral.funeralService.dto.cemetery.request.PurchasePlotRequest;
 import com.funeral.funeralService.dto.order.request.*;
 import com.funeral.funeralService.dto.order.response.OrderResponse;
-import com.funeral.funeralService.entity.Order;
-import com.funeral.funeralService.entity.OrderDocument;
-import com.funeral.funeralService.entity.OrderProductItem;
-import com.funeral.funeralService.entity.OrderServiceItem;
-import com.funeral.funeralService.entity.OrderStatus;
+import com.funeral.funeralService.entity.*;
 import com.funeral.funeralService.exception.*;
 import com.funeral.funeralService.mapper.OrderMapper;
 import com.funeral.funeralService.repository.CatalogProductRepository;
@@ -190,7 +186,6 @@ public class OrderService {
         order.setServiceDate(request.getServiceDate());
         order.setServiceTime(request.getServiceTime());
         order.setServiceAddress(request.getServiceAddress());
-        order.setCemetery(request.getCemetery());
         order.setCemeteryNotes(request.getCemeteryNotes());
 
         Order savedOrder = repository.save(order);
@@ -288,7 +283,7 @@ public class OrderService {
     private List<OrderServiceItem> toServiceItems(List<Long> serviceIds, Order order) {
         return serviceIds.stream()
                 .map(serviceId -> {
-                    com.funeral.funeralService.entity.FuneralService service = funeralServiceRepository.findById(serviceId)
+                    FuneralService service = funeralServiceRepository.findById(serviceId)
                             .filter(item -> Boolean.TRUE.equals(item.getActive()))
                             .orElseThrow(() -> new FuneralServiceNotFoundException(serviceId));
 
@@ -304,7 +299,7 @@ public class OrderService {
     private List<OrderProductItem> toProductItems(List<Long> productIds, Order order) {
         return productIds.stream()
                 .map(productId -> {
-                    com.funeral.funeralService.entity.CatalogProduct product = catalogProductRepository.findById(productId)
+                    CatalogProduct product = catalogProductRepository.findById(productId)
                             .filter(item -> Boolean.TRUE.equals(item.getActive()))
                             .orElseThrow(() -> new CatalogProductNotFoundException(productId));
 
@@ -320,7 +315,7 @@ public class OrderService {
     private List<OrderServiceItem> toServiceItemsByCatalog(List<OrderCatalogSelectionRequest> requestedItems, Order order) {
         return requestedItems.stream()
                 .map(requestedItem -> {
-                    com.funeral.funeralService.entity.FuneralService service =
+                    FuneralService service =
                             funeralServiceRepository.findFirstByTitleAndActiveTrue(requestedItem.getName())
                                     .orElseThrow(() -> new FuneralServiceNotFoundException(requestedItem.getName()));
 
@@ -336,7 +331,7 @@ public class OrderService {
     private List<OrderProductItem> toProductItemsByCatalog(List<OrderCatalogSelectionRequest> requestedItems, Order order) {
         return requestedItems.stream()
                 .map(requestedItem -> {
-                    com.funeral.funeralService.entity.CatalogProduct product =
+                    CatalogProduct product =
                             catalogProductRepository.findFirstByTitleAndActiveTrue(requestedItem.getName())
                                     .orElseThrow(() -> new CatalogProductNotFoundException(requestedItem.getName()));
 

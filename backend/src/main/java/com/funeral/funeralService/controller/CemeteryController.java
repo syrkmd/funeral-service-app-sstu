@@ -17,7 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/cemetery")
 @RequiredArgsConstructor
-@Tag(name = "Интеграция с кладбищем", description = "Заглушка интеграции с сервисом кладбища, подготовленная для будущей замены на внешний сервис")
+@Tag(name = "Интеграция с кладбищем", description = "Интеграция с сервисом кладбища для получения свободных участков и резервирования мест захоронения")
 public class CemeteryController {
 
     private final CemeteryClientService service;

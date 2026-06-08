@@ -148,5 +148,4 @@ public class OrderMapper {
         dto.setSize(document.getSize());
         return dto;
     }
-
 }

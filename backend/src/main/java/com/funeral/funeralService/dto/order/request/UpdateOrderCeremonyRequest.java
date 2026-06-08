@@ -28,10 +28,6 @@ public class UpdateOrderCeremonyRequest {
     @Schema(description = "Адрес церемонии", example = "ул. Центральная, 10")
     private String serviceAddress;
 
-    @NotBlank
-    @Schema(description = "Название кладбища", example = "Основное кладбище")
-    private String cemetery;
-
     @Size(max = 1000)
     @Schema(description = "Необязательные примечания по кладбищу", example = "Вход со стороны центральных ворот")
     private String cemeteryNotes;
